@@ -1,0 +1,80 @@
+services:
+  db:
+    image: postgres:15
+    container_name: canal_edu_db
+    restart: always
+    environment:
+      POSTGRES_USER: admin_paulo
+      POSTGRES_PASSWORD: paulo_secret_2026
+      POSTGRES_DB: canal_edu_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_final:/var/lib/postgresql/data
+    # NOVO: Garante que o container só seja considerado "saudável" quando o Postgres aceitar conexões
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_paulo -d canal_edu_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: canal_edu_redis
+    ports:
+      - "6379:6379"
+
+  api:
+    build: .
+    container_name: canal_edu_api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://admin_paulo:paulo_secret_2026@db:5432/canal_edu_db
+      - REDIS_URL=redis://redis:6379/0
+      - __firebase_config=${__firebase_config}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: .
+    container_name: canal_edu_worker
+    command: celery -A app.tasks.worker.celery_app worker --loglevel=info
+    volumes:
+      - .:/app
+      - ./credentials.json:/app/credentials.json
+    environment:
+      - DATABASE_URL=postgresql://admin_paulo:paulo_secret_2026@db:5432/canal_edu_db
+      - REDIS_URL=redis://redis:6379/0
+      - __firebase_config=${__firebase_config}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  beat:
+    build: .
+    container_name: canal_edu_beat
+    command: celery -A app.tasks.worker.celery_app beat --loglevel=info
+    volumes:
+      - .:/app
+      - ./credentials.json:/app/credentials.json
+    environment:
+      - DATABASE_URL=postgresql://admin_paulo:paulo_secret_2026@db:5432/canal_edu_db
+      - REDIS_URL=redis://redis:6379/0
+      - __firebase_config=${__firebase_config}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+volumes:
+  postgres_data_final:

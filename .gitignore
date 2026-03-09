@@ -1,0 +1,49 @@
+--- SEGURANÇA (CRÍTICO) ---
+
+credentials.json
+.env
+.env.
+secrets.json
+*.db
+
+venv/
+__pycache__/
+*.db
+credentials.json
+.env
+
+--- PYTHON ---
+
+pycache/
+*.py[cod]
+*$py.class
+.venv
+venv/
+ENV/
+.pytest_cache/
+
+--- DOCKER & DATABASE ---
+
+.docker/
+
+Exclui os dados reais do banco de dados se estiverem mapeados localmente
+
+postgres_data/
+postgres_data_final/
+
+--- SISTEMA ---
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+
+--- DADOS ---
+
+Exclui o CSV de horários se ele contiver dados sensíveis,
+
+ou mantenha se for apenas um modelo de teste.
+
+data/horario.csv

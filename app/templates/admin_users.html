@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% block title %}Gestão de Utilizadores — Canal Educação{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">👥 Gestão de Utilizadores</h1>
+        <p class="page-subtitle">Convites, perfis, permissões e auditoria</p>
+    </div>
+    <button class="btn btn-primary" onclick="openInviteModal()">
+        ✉️ Enviar Convite
+    </button>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" style="margin-bottom: 1.5rem;">
+    <button class="tab-btn active" onclick="switchTab('users')" id="tab-users">👥 Utilizadores</button>
+    <button class="tab-btn" onclick="switchTab('audit')" id="tab-audit">🔒 Log de Auditoria</button>
+</div>
+
+<!-- Users Tab -->
+<div class="card" id="panel-users">
+    <div class="card-header">
+        <h3 class="card-title">Utilizadores Registados</h3>
+    </div>
+    <div id="users-table">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Audit Log Tab -->
+<div class="card" id="panel-audit" style="display: none;">
+    <div class="card-header">
+        <h3 class="card-title">🔒 Trilha de Auditoria</h3>
+        <select id="audit-filter" class="form-select" style="width: auto; min-width: 150px;" onchange="loadAuditLogs()">
+            <option value="">Todas as ações</option>
+            <option value="USER_INVITED">Convites</option>
+            <option value="USER_DEACTIVATED">Desativações</option>
+            <option value="USER_ACTIVATED">Reativações</option>
+            <option value="USER_ROLE_CHANGED">Alterações de Perfil</option>
+        </select>
+    </div>
+    <div id="audit-table">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Invite Modal -->
+<div class="drawer-overlay" id="invite-overlay" onclick="closeInviteModal()"></div>
+<div class="drawer" id="invite-drawer">
+    <div class="drawer-header">
+        <h3>✉️ Novo Convite</h3>
+        <button class="drawer-close" onclick="closeInviteModal()">✕</button>
+    </div>
+    <form id="invite-form" onsubmit="sendInvite(event)">
+        <div class="form-group">
+            <label class="form-label">Email Institucional</label>
+            <input type="email" id="invite-email" class="form-input" placeholder="email@canaleducacao.gov.br" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Nome Completo</label>
+            <input type="text" id="invite-name" class="form-input" placeholder="Nome do utilizador" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Perfil</label>
+            <select id="invite-role" class="form-select">
+                <option value="assistente">Assistente</option>
+                <option value="gestor">Gestor</option>
+                <option value="auditor">Auditor</option>
+                <option value="admin">Administrador</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-full">Enviar Convite</button>
+
+        <div id="invite-result"
+            style="display: none; margin-top: 1rem; padding: 1rem; border-radius: var(--radius-sm); background: rgba(16, 185, 129, 0.1); border: 1px solid var(--status-green);">
+            <p style="font-size: 0.8rem; color: var(--status-green); margin-bottom: 0.5rem;">✅ Convite criado!</p>
+            <p style="font-size: 0.75rem; color: var(--text-secondary);">Token (dev):</p>
+            <code id="invite-token-display"
+                style="font-size: 0.7rem; word-break: break-all; color: var(--text-accent);"></code>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) { window.location.href = '/'; return; }
+        loadUserProfile();
+        loadUsers();
+    });
+
+    function switchTab(tab) {
+        document.getElementById('panel-users').style.display = tab === 'users' ? 'block' : 'none';
+        document.getElementById('panel-audit').style.display = tab === 'audit' ? 'block' : 'none';
+        document.getElementById('tab-users').classList.toggle('active', tab === 'users');
+        document.getElementById('tab-audit').classList.toggle('active', tab === 'audit');
+        if (tab === 'audit') loadAuditLogs();
+    }
+
+    async function loadUsers() {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('/api/v1/auth/users', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                document.getElementById('users-table').innerHTML = '<p style="color: var(--text-muted); padding: 1rem;">Sem permissão para listar utilizadores.</p>';
+                return;
+            }
+            const data = await res.json();
+            const users = data.users;
+
+            if (users.length === 0) {
+                document.getElementById('users-table').innerHTML = '<div class="empty-state"><div class="icon">👥</div><p>Nenhum utilizador registado.</p></div>';
+                return;
+            }
+
+            const rows = users.map(u => `
+                <tr>
+                    <td><strong>${u.full_name}</strong></td>
+                    <td>${u.email}</td>
+                    <td><span class="badge badge-${roleBadge(u.role)}">${u.role}</span></td>
+                    <td><span class="badge badge-${u.email_confirmed ? 'green' : 'yellow'}">${u.email_confirmed ? 'Confirmado' : 'Pendente'}</span></td>
+                    <td><span class="badge badge-${u.is_active ? 'green' : 'red'}">${u.is_active ? 'Ativo' : 'Inativo'}</span></td>
+                    <td>
+                        ${u.is_active ?
+                    `<button class="btn btn-danger btn-sm" onclick="toggleUser('${u.id}', 'deactivate')" title="Desativar">🚫</button>` :
+                    `<button class="btn btn-primary btn-sm" onclick="toggleUser('${u.id}', 'activate')" title="Reativar">✅</button>`
+                }
+                        <select class="form-select" style="width: auto; min-width: 100px; display: inline-block; font-size: 0.75rem; padding: 0.3rem;"
+                                onchange="changeRole('${u.id}', this.value)" title="Alterar perfil">
+                            <option value="" disabled selected>Perfil...</option>
+                            <option value="assistente">Assistente</option>
+                            <option value="gestor">Gestor</option>
+                            <option value="auditor">Auditor</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('users-table').innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Nome</th><th>Email</th><th>Perfil</th><th>Email</th><th>Estado</th><th>Ações</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        } catch (e) { console.error(e); }
+    }
+
+    async function toggleUser(userId, action) {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`/api/v1/auth/users/${userId}/${action}`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.detail || 'Erro');
+            }
+            const data = await res.json();
+            showToast(data.message, 'success');
+            loadUsers();
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function changeRole(userId, newRole) {
+        if (!newRole) return;
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`/api/v1/auth/users/${userId}/role?role=${newRole}`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.detail || 'Erro');
+            }
+            const data = await res.json();
+            showToast(data.message, 'success');
+            loadUsers();
+        } catch (e) { showToast(e.message, 'error'); }
+    }
+
+    async function loadAuditLogs() {
+        const token = localStorage.getItem('access_token');
+        const action = document.getElementById('audit-filter').value;
+        const params = new URLSearchParams({ limit: '100' });
+        if (action) params.set('action', action);
+
+        try {
+            const res = await fetch(`/api/v1/auth/audit-logs?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) {
+                document.getElementById('audit-table').innerHTML = '<p style="color: var(--text-muted); padding: 1rem;">Sem permissão para visualizar logs.</p>';
+                return;
+            }
+            const logs = await res.json();
+
+            if (logs.length === 0) {
+                document.getElementById('audit-table').innerHTML = '<div class="empty-state"><div class="icon">🔒</div><p>Nenhum registo de auditoria.</p></div>';
+                return;
+            }
+
+            const rows = logs.map(l => `
+                <tr>
+                    <td style="white-space: nowrap;">${new Date(l.created_at).toLocaleString('pt-BR')}</td>
+                    <td><span class="badge badge-${actionBadge(l.action)}">${actionLabel(l.action)}</span></td>
+                    <td style="max-width: 400px;">${l.details || '—'}</td>
+                    <td style="font-size: 0.75rem; color: var(--text-muted);">${l.ip_address || '—'}</td>
+                </tr>
+            `).join('');
+
+            document.getElementById('audit-table').innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead><tr><th>Data/Hora</th><th>Ação</th><th>Detalhes</th><th>IP</th></tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        } catch (e) { console.error(e); }
+    }
+
+    function roleBadge(role) {
+        switch (role) {
+            case 'admin': return 'red';
+            case 'gestor': return 'blue';
+            case 'auditor': return 'yellow';
+            case 'assistente': return 'gray';
+            default: return 'gray';
+        }
+    }
+
+    function actionBadge(action) {
+        switch (action) {
+            case 'USER_INVITED': return 'green';
+            case 'USER_DEACTIVATED': return 'red';
+            case 'USER_ACTIVATED': return 'blue';
+            case 'USER_ROLE_CHANGED': return 'yellow';
+            default: return 'gray';
+        }
+    }
+
+    function actionLabel(action) {
+        switch (action) {
+            case 'USER_INVITED': return 'Convite';
+            case 'USER_DEACTIVATED': return 'Desativação';
+            case 'USER_ACTIVATED': return 'Reativação';
+            case 'USER_ROLE_CHANGED': return 'Perfil Alterado';
+            default: return action;
+        }
+    }
+
+    function openInviteModal() {
+        document.getElementById('invite-overlay').classList.add('open');
+        document.getElementById('invite-drawer').classList.add('open');
+    }
+
+    function closeInviteModal() {
+        document.getElementById('invite-overlay').classList.remove('open');
+        document.getElementById('invite-drawer').classList.remove('open');
+    }
+
+    async function sendInvite(e) {
+        e.preventDefault();
+        const token = localStorage.getItem('access_token');
+
+        try {
+            const res = await fetch('/api/v1/auth/invite', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    email: document.getElementById('invite-email').value,
+                    full_name: document.getElementById('invite-name').value,
+                    role: document.getElementById('invite-role').value,
+                }),
+            });
+
+            if (!res.ok) {
+                const data = await res.json();
+                throw new Error(data.detail || 'Erro ao enviar convite.');
+            }
+
+            const data = await res.json();
+
+            // Show token for dev
+            document.getElementById('invite-token-display').textContent = data.invite_token;
+            document.getElementById('invite-result').style.display = 'block';
+
+            showToast('Convite enviado com sucesso!', 'success');
+            loadUsers();  // Refresh table
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+</script>
+{% endblock %}

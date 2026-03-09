@@ -1,0 +1,460 @@
+{% extends "base.html" %}
+{% block title %}Relatórios & Auditoria — Canal Educação{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📋 Relatórios & Auditoria</h1>
+        <p class="page-subtitle">Buscas, compliance e exportação para faturamento</p>
+    </div>
+    <button class="btn btn-primary" onclick="exportCSV()">
+        📥 Exportar CSV
+    </button>
+</div>
+
+<!-- Filters Bar -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">🔍 Filtros</h3>
+        <button class="btn btn-secondary btn-sm" onclick="clearFilters()">Limpar</button>
+    </div>
+    <div class="form-row" style="gap: 0.75rem;">
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Data Início</label>
+            <input type="date" id="f-data-inicio" class="form-input" onchange="loadReports()">
+        </div>
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Data Fim</label>
+            <input type="date" id="f-data-fim" class="form-input" onchange="loadReports()">
+        </div>
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Status</label>
+            <select id="f-status" class="form-select" onchange="loadReports()">
+                <option value="">Todos</option>
+                <option value="RASCUNHO">Rascunho</option>
+                <option value="FINALIZADO">Finalizado</option>
+                <option value="CANCELADO">Cancelado</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Estúdio</label>
+            <select id="f-estudio" class="form-select" onchange="loadReports()">
+                <option value="">Todos</option>
+                <option>Estúdio 01</option>
+                <option>Estúdio 02</option>
+                <option>Estúdio 03</option>
+                <option>Estúdio 04</option>
+                <option>Estúdio 05</option>
+                <option>Estúdio 06</option>
+                <option>Estúdio 07</option>
+                <option>Estúdio 08</option>
+                <option>Estúdio 09</option>
+                <option>Externo</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Turma</label>
+            <select id="f-turma" class="form-select" onchange="loadReports()">
+                <option value="">Todas</option>
+            </select>
+        </div>
+    </div>
+    <div class="form-row" style="gap: 0.75rem; margin-top: 0.25rem;">
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Professor</label>
+            <select id="f-professor" class="form-select" onchange="loadReports()">
+                <option value="">Todos</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Disciplina</label>
+            <select id="f-disciplina" class="form-select" onchange="loadReports()">
+                <option value="">Todas</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0.5rem;">
+            <label class="form-label">Tipo Aula</label>
+            <select id="f-tipo-aula" class="form-select" onchange="loadReports()">
+                <option value="">Todos</option>
+                <option>Manutenção de estúdio</option>
+                <option>Planejamento Pedagógico</option>
+                <option>Videoconferência</option>
+                <option>Gravação estúdio</option>
+                <option>UAPI</option>
+                <option>Transmissão ao vivo</option>
+                <option>Gravação externa</option>
+            </select>
+        </div>
+    </div>
+    <!-- Boolean Compliance Filters -->
+    <div style="display: flex; gap: 1.5rem; margin-top: 0.5rem; flex-wrap: wrap;">
+        <label
+            style="font-size: 0.8rem; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); cursor: pointer;">
+            <input type="checkbox" id="f-atraso" onchange="loadReports()"> Com Atraso
+        </label>
+        <label
+            style="font-size: 0.8rem; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); cursor: pointer;">
+            <input type="checkbox" id="f-substituicao" onchange="loadReports()"> Com Substituição
+        </label>
+        <label
+            style="font-size: 0.8rem; display: flex; align-items: center; gap: 6px; color: var(--text-secondary); cursor: pointer;">
+            <input type="checkbox" id="f-problema" onchange="loadReports()"> Com Problema Técnico
+        </label>
+    </div>
+</div>
+
+<!-- Reports DataGrid -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title" id="reports-count">Carregando...</h3>
+        <div style="display: flex; align-items: center; gap: 1rem;">
+            <label style="font-size: 0.75rem; color: var(--text-secondary);">Ordenar:</label>
+            <select id="sort-by" class="form-select" style="width: auto; min-width: 130px;" onchange="loadReports()">
+                <option value="data_aula">Data Aula ↓</option>
+                <option value="created_at">Criado Em ↓</option>
+            </select>
+        </div>
+    </div>
+    <div id="reports-grid">
+        <div class="spinner"></div>
+    </div>
+    <!-- Pagination -->
+    <div id="pagination"
+        style="display: flex; align-items: center; justify-content: space-between; padding: 1rem 0; border-top: 1px solid var(--border-subtle); margin-top: 1rem;">
+        <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <label style="font-size: 0.75rem; color: var(--text-secondary);">Por página:</label>
+            <select id="page-size" class="form-select" style="width: auto; min-width: 70px;"
+                onchange="currentOffset=0; loadReports();">
+                <option value="20">20</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+            </select>
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary btn-sm" id="btn-prev" onclick="prevPage()" disabled>← Anterior</button>
+            <span style="font-size: 0.8rem; color: var(--text-secondary); display: flex; align-items: center;"
+                id="page-info">—</span>
+            <button class="btn btn-secondary btn-sm" id="btn-next" onclick="nextPage()">Próxima →</button>
+        </div>
+    </div>
+</div>
+
+<!-- Report Detail Slide-over (Read-Only) -->
+<div class="drawer-overlay" id="report-overlay" onclick="closeReportDetail()"></div>
+<div class="drawer drawer-wide" id="report-drawer">
+    <div class="drawer-header">
+        <h3>📝 Detalhe do Relatório</h3>
+        <button class="drawer-close" onclick="closeReportDetail()">✕</button>
+    </div>
+    <div id="report-detail-content" style="padding: 1rem;">
+        <div class="spinner"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentOffset = 0;
+    let totalReports = 0;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) { window.location.href = '/'; return; }
+        loadUserProfile();
+        loadFilterData();
+        loadReports();
+    });
+
+    async function loadFilterData() {
+        const token = localStorage.getItem('access_token');
+        const headers = { 'Authorization': `Bearer ${token}` };
+
+        try {
+            // Turmas
+            const turmasRes = await fetch('/api/v1/turmas/', { headers });
+            if (turmasRes.ok) {
+                const turmas = await turmasRes.json();
+                const sel = document.getElementById('f-turma');
+                turmas.forEach(t => {
+                    sel.innerHTML += `<option value="${t.id}">${t.nome} (${t.turno})</option>`;
+                });
+            }
+
+            // Professores
+            const profRes = await fetch('/api/v1/reports/lookup/professores', { headers });
+            if (profRes.ok) {
+                const profs = await profRes.json();
+                const sel = document.getElementById('f-professor');
+                profs.forEach(p => {
+                    sel.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+                });
+            }
+
+            // Disciplinas
+            const discRes = await fetch('/api/v1/reports/lookup/disciplinas', { headers });
+            if (discRes.ok) {
+                const discs = await discRes.json();
+                const sel = document.getElementById('f-disciplina');
+                discs.forEach(d => {
+                    sel.innerHTML += `<option value="${d.id}">${d.nome}</option>`;
+                });
+            }
+        } catch (e) { console.error('Filter data error:', e); }
+    }
+
+    function buildFilterParams() {
+        const params = new URLSearchParams();
+        const limit = document.getElementById('page-size').value;
+        params.set('limit', limit);
+        params.set('offset', currentOffset);
+        params.set('sort_by', document.getElementById('sort-by').value);
+        params.set('sort_order', 'desc');
+
+        const di = document.getElementById('f-data-inicio').value;
+        const df = document.getElementById('f-data-fim').value;
+        const st = document.getElementById('f-status').value;
+        const es = document.getElementById('f-estudio').value;
+        const tu = document.getElementById('f-turma').value;
+        const pr = document.getElementById('f-professor').value;
+        const ds = document.getElementById('f-disciplina').value;
+        const ta = document.getElementById('f-tipo-aula').value;
+
+        if (di) params.set('data_inicio', di);
+        if (df) params.set('data_fim', df);
+        if (st) params.set('status', st);
+        if (es) params.set('estudio', es);
+        if (tu) params.set('turma_id', tu);
+        if (pr) params.set('professor_id', pr);
+        if (ds) params.set('disciplina_id', ds);
+        if (ta) params.set('tipo_aula', ta);
+
+        if (document.getElementById('f-atraso').checked) params.set('com_atraso', 'true');
+        if (document.getElementById('f-substituicao').checked) params.set('com_substituicao', 'true');
+        if (document.getElementById('f-problema').checked) params.set('com_problema', 'true');
+
+        return params;
+    }
+
+    async function loadReports() {
+        const token = localStorage.getItem('access_token');
+        const params = buildFilterParams();
+
+        try {
+            const res = await fetch(`/api/v1/reports/?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Erro ao carregar relatórios');
+
+            const data = await res.json();
+            totalReports = data.total;
+            const reports = data.items;
+            const limit = parseInt(document.getElementById('page-size').value);
+
+            document.getElementById('reports-count').textContent =
+                `${totalReports} relatório(s) encontrado(s)`;
+
+            // Pagination UI
+            const pageNum = Math.floor(currentOffset / limit) + 1;
+            const totalPages = Math.ceil(totalReports / limit) || 1;
+            document.getElementById('page-info').textContent = `Página ${pageNum} de ${totalPages}`;
+            document.getElementById('btn-prev').disabled = currentOffset === 0;
+            document.getElementById('btn-next').disabled = currentOffset + limit >= totalReports;
+
+            if (reports.length === 0) {
+                document.getElementById('reports-grid').innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📋</div>
+                        <p>Nenhum relatório encontrado com os filtros selecionados.</p>
+                    </div>`;
+                return;
+            }
+
+            const rows = reports.map(r => `
+                <tr onclick="openReportDetail('${r.id}')" style="cursor: pointer;">
+                    <td>${r.data_aula}</td>
+                    <td>${r.turno}</td>
+                    <td>${r.estudio}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.conteudo_ministrado}</td>
+                    <td>${r.tipo_aula}</td>
+                    <td><span class="badge badge-${statusBadge(r.status)}">${r.status}</span></td>
+                    <td>
+                        ${r.teve_atraso ? '<span class="badge badge-yellow" title="Atraso">⏰</span>' : ''}
+                        ${r.teve_substituicao ? '<span class="badge badge-blue" title="Substituição">🔄</span>' : ''}
+                        ${r.problema_material !== 'Não' ? '<span class="badge badge-red" title="Problema">⚠️</span>' : ''}
+                    </td>
+                </tr>
+            `).join('');
+
+            document.getElementById('reports-grid').innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Data</th>
+                                <th>Turno</th>
+                                <th>Estúdio</th>
+                                <th>Conteúdo</th>
+                                <th>Tipo</th>
+                                <th>Status</th>
+                                <th>Ocorrências</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        } catch (e) {
+            console.error(e);
+            document.getElementById('reports-grid').innerHTML = '<p style="color: var(--status-red); padding: 1rem;">Erro ao carregar relatórios.</p>';
+        }
+    }
+
+    function prevPage() {
+        const limit = parseInt(document.getElementById('page-size').value);
+        currentOffset = Math.max(0, currentOffset - limit);
+        loadReports();
+    }
+
+    function nextPage() {
+        const limit = parseInt(document.getElementById('page-size').value);
+        if (currentOffset + limit < totalReports) {
+            currentOffset += limit;
+            loadReports();
+        }
+    }
+
+    function clearFilters() {
+        document.getElementById('f-data-inicio').value = '';
+        document.getElementById('f-data-fim').value = '';
+        document.getElementById('f-status').value = '';
+        document.getElementById('f-estudio').value = '';
+        document.getElementById('f-turma').value = '';
+        document.getElementById('f-professor').value = '';
+        document.getElementById('f-disciplina').value = '';
+        document.getElementById('f-tipo-aula').value = '';
+        document.getElementById('f-atraso').checked = false;
+        document.getElementById('f-substituicao').checked = false;
+        document.getElementById('f-problema').checked = false;
+        currentOffset = 0;
+        loadReports();
+    }
+
+    async function exportCSV() {
+        const token = localStorage.getItem('access_token');
+        const params = buildFilterParams();
+        params.delete('limit');
+        params.delete('offset');
+
+        try {
+            const res = await fetch(`/api/v1/reports/export?${params.toString()}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Erro na exportação');
+
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `relatorios_${new Date().toISOString().split('T')[0]}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+            showToast('Exportação CSV concluída!', 'success');
+        } catch (e) {
+            showToast('Erro ao exportar: ' + e.message, 'error');
+        }
+    }
+
+    async function openReportDetail(reportId) {
+        const token = localStorage.getItem('access_token');
+        document.getElementById('report-overlay').classList.add('open');
+        document.getElementById('report-drawer').classList.add('open');
+        document.getElementById('report-detail-content').innerHTML = '<div class="spinner"></div>';
+
+        try {
+            const res = await fetch(`/api/v1/reports/${reportId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Erro ao carregar');
+            const r = await res.json();
+
+            document.getElementById('report-detail-content').innerHTML = `
+                <div style="display: grid; gap: 1.5rem;">
+                    <!-- Status Badge -->
+                    <div style="text-align: center; padding: 0.75rem; background: var(--bg-glass); border-radius: var(--radius-sm);">
+                        <span class="badge badge-${statusBadge(r.status)}" style="font-size: 0.85rem; padding: 0.4rem 1.2rem;">${r.status}</span>
+                    </div>
+
+                    <!-- Contexto Operacional -->
+                    <div>
+                        <div class="form-section-title">📌 Contexto</div>
+                        <div class="detail-grid">
+                            <div class="detail-item"><span class="detail-label">Data</span><span>${r.data_aula}</span></div>
+                            <div class="detail-item"><span class="detail-label">Turno</span><span>${r.turno}</span></div>
+                            <div class="detail-item"><span class="detail-label">Estúdio</span><span>${r.estudio}</span></div>
+                            <div class="detail-item"><span class="detail-label">Horário</span><span>${r.horario_aula}</span></div>
+                            <div class="detail-item"><span class="detail-label">Regular</span><span>${r.regular}</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Execução -->
+                    <div>
+                        <div class="form-section-title">🎬 Execução</div>
+                        <div class="detail-grid">
+                            <div class="detail-item"><span class="detail-label">Tipo Aula</span><span>${r.tipo_aula}</span></div>
+                            <div class="detail-item"><span class="detail-label">Canal</span><span>${r.canal_utilizado}</span></div>
+                            <div class="detail-item"><span class="detail-label">Interação</span><span>${r.interacao_professor_aluno}</span></div>
+                            <div class="detail-item"><span class="detail-label">Atividade</span><span>${r.atividade_pratica || '—'}</span></div>
+                        </div>
+                        <div style="margin-top: 0.75rem;">
+                            <div class="detail-label">Conteúdo Ministrado</div>
+                            <p style="margin-top: 0.25rem; color: var(--text-primary); font-size: 0.9rem;">${r.conteudo_ministrado}</p>
+                        </div>
+                        ${r.observacoes ? `<div style="margin-top: 0.5rem;"><div class="detail-label">Observações</div><p style="color: var(--text-secondary); font-size: 0.85rem;">${r.observacoes}</p></div>` : ''}
+                    </div>
+
+                    <!-- Recursos -->
+                    <div>
+                        <div class="form-section-title">📦 Recursos</div>
+                        <div class="detail-grid">
+                            <div class="detail-item"><span class="detail-label">Recursos</span><span>${r.tipo_recursos_utilizados ? r.tipo_recursos_utilizados.join(', ') : '—'}</span></div>
+                            <div class="detail-item"><span class="detail-label">Problema Material</span><span>${r.problema_material}</span></div>
+                        </div>
+                    </div>
+
+                    <!-- Ocorrências -->
+                    <div>
+                        <div class="form-section-title">⚠️ Ocorrências</div>
+                        <div class="detail-grid">
+                            <div class="detail-item"><span class="detail-label">Substituição</span><span>${r.teve_substituicao ? 'Sim' : 'Não'}</span></div>
+                            <div class="detail-item"><span class="detail-label">Atraso</span><span>${r.teve_atraso ? r.minutos_atraso + ' min' : 'Não'}</span></div>
+                        </div>
+                        ${r.observacao_atraso ? `<div style="margin-top: 0.5rem;"><div class="detail-label">Obs. Atraso</div><p style="color: var(--text-secondary); font-size: 0.85rem;">${r.observacao_atraso}</p></div>` : ''}
+                    </div>
+
+                    <!-- Naming Engine -->
+                    ${r.nome_ficheiro_gerado ? `
+                    <div>
+                        <div class="form-section-title">🎞️ Ficheiro Gerado</div>
+                        <div class="naming-preview">${r.nome_ficheiro_gerado}</div>
+                    </div>` : ''}
+                </div>
+            `;
+        } catch (e) {
+            document.getElementById('report-detail-content').innerHTML = '<p style="color: var(--status-red);">Erro ao carregar detalhe.</p>';
+        }
+    }
+
+    function closeReportDetail() {
+        document.getElementById('report-overlay').classList.remove('open');
+        document.getElementById('report-drawer').classList.remove('open');
+    }
+
+    function statusBadge(status) {
+        switch (status) {
+            case 'FINALIZADO': return 'green';
+            case 'RASCUNHO': return 'yellow';
+            case 'CANCELADO': return 'red';
+            default: return 'gray';
+        }
+    }
+</script>
+{% endblock %}

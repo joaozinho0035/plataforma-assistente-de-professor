@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Canal Educação{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">Visão geral do sistema</p>
+    </div>
+    <div class="ws-status" id="ws-indicator" style="display:none;">
+        <span class="dot"></span>
+        <span id="ws-count">0</span> online
+    </div>
+</div>
+
+<!-- Stats -->
+<div class="stats-grid" id="stats-grid">
+    <div class="stat-card">
+        <div class="stat-value" id="stat-reports">—</div>
+        <div class="stat-label">Relatórios Hoje</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-finalized">—</div>
+        <div class="stat-label">Finalizados</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-drafts">—</div>
+        <div class="stat-label">Rascunhos</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-value" id="stat-turmas">—</div>
+        <div class="stat-label">Turmas Ativas</div>
+    </div>
+</div>
+
+<!-- Recent Reports -->
+<div class="card">
+    <div class="card-header">
+        <h3 class="card-title">📝 Relatórios Recentes</h3>
+        <a href="/report" class="btn btn-primary btn-sm">Novo Relatório</a>
+    </div>
+    <div id="recent-reports">
+        <div class="spinner"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) { window.location.href = '/'; return; }
+
+        // Load user profile
+        loadUserProfile();
+
+        // Load stats
+        try {
+            const headers = { 'Authorization': `Bearer ${token}` };
+
+            // Reports — API retorna PaginatedReportsResponse { items, total, limit, offset }
+            const reportsRes = await fetch('/api/v1/reports/?limit=200', { headers });
+            if (reportsRes.ok) {
+                const data = await reportsRes.json();
+                const reports = data.items || [];
+                const today = new Date().toISOString().split('T')[0];
+                const todayReports = reports.filter(r => r.data_aula === today);
+                const finalized = reports.filter(r => r.status === 'FINALIZADO');
+                const drafts = reports.filter(r => r.status === 'RASCUNHO');
+
+                document.getElementById('stat-reports').textContent = todayReports.length;
+                document.getElementById('stat-finalized').textContent = finalized.length;
+                document.getElementById('stat-drafts').textContent = drafts.length;
+
+                // Recent reports table
+                const container = document.getElementById('recent-reports');
+                if (reports.length === 0) {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="icon">📋</div>
+                            <p>Nenhum relatório registado ainda.</p>
+                        </div>`;
+                } else {
+                    const rows = reports.slice(0, 10).map(r => `
+                        <tr>
+                            <td>${r.data_aula}</td>
+                            <td>${r.turno}</td>
+                            <td>${r.estudio}</td>
+                            <td>${r.conteudo_ministrado}</td>
+                            <td><span class="badge badge-${statusBadge(r.status)}">${r.status}</span></td>
+                        </tr>
+                    `).join('');
+
+                    container.innerHTML = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Turno</th>
+                                        <th>Estúdio</th>
+                                        <th>Conteúdo</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rows}</tbody>
+                            </table>
+                        </div>`;
+                }
+            }
+
+            // Turmas count
+            const turmasRes = await fetch('/api/v1/turmas/', { headers });
+            if (turmasRes.ok) {
+                const turmas = await turmasRes.json();
+                document.getElementById('stat-turmas').textContent = turmas.length;
+            }
+        } catch (err) {
+            console.error('Dashboard load error:', err);
+        }
+    });
+
+    function statusBadge(status) {
+        switch (status) {
+            case 'FINALIZADO': return 'green';
+            case 'RASCUNHO': return 'yellow';
+            case 'CANCELADO': return 'gray';
+            default: return 'blue';
+        }
+    }
+</script>
+{% endblock %}

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Canal Educação - Login">
+    <title>Login — Canal Educação</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo">📡</div>
+                <h1>Canal Educação</h1>
+                <p>Sistema de Gestão de Relatórios v3.0</p>
+            </div>
+
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label class="form-label" for="email">Email</label>
+                    <input type="email" id="email" name="username" class="form-input"
+                        placeholder="seu.email@exemplo.com" required autocomplete="email">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Senha</label>
+                    <input type="password" id="password" name="password" class="form-input" placeholder="••••••••"
+                        required autocomplete="current-password">
+                </div>
+
+                <div id="login-error"
+                    style="display: none; color: var(--status-red); font-size: 0.8rem; margin-bottom: 1rem; text-align: center;">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full" id="login-btn">
+                    Entrar
+                </button>
+            </form>
+
+            <div
+                style="text-align: center; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border-subtle);">
+                <p style="font-size: 0.8rem; color: var(--text-muted);">
+                    Recebeu um convite? <a href="/confirm" style="color: var(--text-accent);">Confirme a sua conta</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Redirect if already logged in
+        if (localStorage.getItem('access_token')) {
+            window.location.href = '/dashboard';
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const btn = document.getElementById('login-btn');
+            const errorEl = document.getElementById('login-error');
+            errorEl.style.display = 'none';
+            btn.disabled = true;
+            btn.textContent = 'Autenticando...';
+
+            const formData = new URLSearchParams();
+            formData.append('username', document.getElementById('email').value);
+            formData.append('password', document.getElementById('password').value);
+
+            try {
+                const res = await fetch('/api/v1/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: formData,
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.detail || 'Erro ao autenticar.');
+                }
+
+                const data = await res.json();
+                localStorage.setItem('access_token', data.access_token);
+
+                // Fetch user profile
+                const me = await fetch('/api/v1/auth/me', {
+                    headers: { 'Authorization': `Bearer ${data.access_token}` }
+                });
+                if (me.ok) {
+                    const user = await me.json();
+                    localStorage.setItem('user', JSON.stringify(user));
+                }
+
+                window.location.href = '/dashboard';
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Entrar';
+            }
+        }
+    </script>
+</body>
+
+</html>

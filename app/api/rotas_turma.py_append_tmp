@@ -1,0 +1,53 @@
+import json
+from datetime import datetime, time
+from typing import List, Optional
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+
+from app.api.deps import get_current_active_user
+from app.core.database import get_db
+from app.models.turma import Turma
+from app.models.auxiliares import Grade, Disciplina
+from app.models.user import User
+
+# This will just append to rotas_turma.py
+
+@router.get("/{turma_id}/grade", status_code=status.HTTP_200_OK)
+def listar_grade_turma(
+    turma_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retorna a grade horária predefinida (matriz base) para uma turma específica ("§5.1. Grade Horária").
+    """
+    turma = db.query(Turma).filter(Turma.id == turma_id).first()
+    if not turma:
+        raise HTTPException(status_code=404, detail="Turma não encontrada.")
+
+    grades = (
+        db.query(Grade)
+        .filter(Grade.turma_id == turma_id)
+        .order_by(Grade.horario_inicio)
+        .all()
+    )
+
+    resultado = []
+    for g in grades:
+        resultado.append({
+            "id": str(g.id),
+            "dia_semana": g.dia_semana,
+            "horario_inicio": g.horario_inicio.strftime("%H:%M") if g.horario_inicio else None,
+            "horario_fim": g.horario_fim.strftime("%H:%M") if g.horario_fim else None,
+            "turno_aula": g.turno_aula,
+            "canal_iptv": g.canal_iptv,
+            "disciplina_id": str(g.disciplina_id) if g.disciplina_id else None,
+            "disciplina_nome": g.disciplina.nome if g.disciplina else "N/A",
+            "is_gravacao": (g.horario_inicio.strftime("%H:%M") == "00:00") if g.horario_inicio else False
+        })
+    
+    return resultado

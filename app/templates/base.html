@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Canal Educação - Sistema de Gestão de Relatórios de Aula">
+    <title>{% block title %}Canal Educação{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/style.css?v=3.2">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    {% block body %}
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <div class="logo-icon">📡</div>
+                <h2>Canal Educação</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="/dashboard" class="nav-link" data-page="dashboard">
+                    <span class="icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="/grade" class="nav-link" data-page="grade">
+                    <span class="icon">📅</span>
+                    <span>Grade Horária</span>
+                </a>
+                <a href="/reports-audit" class="nav-link" data-page="reports-audit">
+                    <span class="icon">📋</span>
+                    <span>Relatórios & Auditoria</span>
+                </a>
+                <a href="/live-monitor" class="nav-link" data-page="live-monitor">
+                    <span class="icon">📡</span>
+                    <span>Live Monitor</span>
+                </a>
+                <a href="/admin/users" class="nav-link" data-page="admin" id="nav-admin">
+                    <span class="icon">👥</span>
+                    <span>Utilizadores</span>
+                </a>
+            </nav>
+            <div style="margin-top: auto; padding-top: 1rem; border-top: 1px solid var(--border-subtle);">
+                <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem;">
+                    <div
+                        style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent-gradient); display: flex; align-items: center; justify-content: center; font-size: 0.8rem;">
+                        👤</div>
+                    <div>
+                        <div style="font-size: 0.8rem; font-weight: 500;" id="user-name">Carregando...</div>
+                        <div style="font-size: 0.7rem; color: var(--text-muted);" id="user-role"></div>
+                    </div>
+                </div>
+                <button class="btn btn-secondary btn-sm btn-full" style="margin-top: 0.5rem;" onclick="logout()">
+                    Sair
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% endblock %}
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        // Highlight active nav link based on current path
+        document.addEventListener('DOMContentLoaded', () => {
+            const path = window.location.pathname;
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('href') === path) {
+                    link.classList.add('active');
+                }
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

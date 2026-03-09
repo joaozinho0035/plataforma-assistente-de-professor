@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirmar Conta — Canal Educação</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <div class="login-container">
+        <div class="login-card">
+            <div class="login-header">
+                <div class="logo">🔐</div>
+                <h1>Confirmar Conta</h1>
+                <p>Defina a sua senha para ativar o acesso ao sistema.</p>
+            </div>
+
+            <form id="confirm-form" onsubmit="handleConfirm(event)">
+                <div class="form-group">
+                    <label class="form-label" for="token">Token de Convite</label>
+                    <input type="text" id="token" class="form-input" placeholder="Cole o token recebido por email"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Nova Senha</label>
+                    <input type="password" id="password" class="form-input" placeholder="Mínimo 8 caracteres"
+                        minlength="8" required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password-confirm">Confirmar Senha</label>
+                    <input type="password" id="password-confirm" class="form-input" placeholder="Repita a senha"
+                        minlength="8" required>
+                </div>
+
+                <div id="confirm-error"
+                    style="display: none; color: var(--status-red); font-size: 0.8rem; margin-bottom: 1rem; text-align: center;">
+                </div>
+                <div id="confirm-success"
+                    style="display: none; color: var(--status-green); font-size: 0.8rem; margin-bottom: 1rem; text-align: center;">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full" id="confirm-btn">
+                    Confirmar Conta
+                </button>
+            </form>
+
+            <div style="text-align: center; margin-top: 1.5rem;">
+                <a href="/" style="font-size: 0.8rem; color: var(--text-muted);">← Voltar ao Login</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auto-fill token from URL if present
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('token')) {
+            document.getElementById('token').value = params.get('token');
+        }
+
+        async function handleConfirm(e) {
+            e.preventDefault();
+            const btn = document.getElementById('confirm-btn');
+            const errorEl = document.getElementById('confirm-error');
+            const successEl = document.getElementById('confirm-success');
+            errorEl.style.display = 'none';
+            successEl.style.display = 'none';
+
+            const pwd = document.getElementById('password').value;
+            const pwdConfirm = document.getElementById('password-confirm').value;
+
+            if (pwd !== pwdConfirm) {
+                errorEl.textContent = 'As senhas não coincidem.';
+                errorEl.style.display = 'block';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Confirmando...';
+
+            try {
+                const res = await fetch('/api/v1/auth/confirm', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        token: document.getElementById('token').value,
+                        password: pwd,
+                    }),
+                });
+
+                if (!res.ok) {
+                    const data = await res.json();
+                    throw new Error(data.detail || 'Erro ao confirmar.');
+                }
+
+                successEl.textContent = 'Conta confirmada com sucesso! Redirecionando...';
+                successEl.style.display = 'block';
+                setTimeout(() => { window.location.href = '/'; }, 2000);
+            } catch (err) {
+                errorEl.textContent = err.message;
+                errorEl.style.display = 'block';
+                btn.disabled = false;
+                btn.textContent = 'Confirmar Conta';
+            }
+        }
+    </script>
+</body>
+
+</html>

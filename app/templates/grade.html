@@ -1,0 +1,516 @@
+{% extends "base.html" %}
+{% block title %}Grade Horária — Canal Educação{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📅 Grade Horária</h1>
+        <p class="page-subtitle">Visualização de aulas por turma — Dias × Horários</p>
+    </div>
+    <div style="display: flex; gap: 0.75rem; align-items: center;">
+        <div class="ws-status" id="ws-status">
+            <span class="dot"></span>
+            <span id="ws-text">Conectando...</span>
+        </div>
+        <a href="/report" class="btn btn-primary">+ Novo Relatório</a>
+    </div>
+</div>
+
+<!-- Turma Selector (§5.1 — autocomplete-style) -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="form-row" style="gap: 1rem; align-items: flex-end;">
+        <div class="form-group" style="margin-bottom: 0; flex: 2;">
+            <label class="form-label">Selecione a Turma</label>
+            <select id="turma-selector" class="form-select" onchange="loadGrade()">
+                <option value="">Carregando turmas...</option>
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom: 0; flex: 1;">
+            <label class="form-label">Semana</label>
+            <input type="week" id="grade-week" class="form-input" onchange="loadGrade()">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+            <button class="btn btn-secondary btn-sm" onclick="prevWeek()">← Anterior</button>
+            <button class="btn btn-secondary btn-sm" onclick="nextWeek()">Próxima →</button>
+        </div>
+    </div>
+</div>
+
+<!-- Grade Matrix: Dias × Horários -->
+<div class="card" id="grade-container">
+    <div class="empty-state" id="grade-empty">
+        <div class="icon">📅</div>
+        <p>Selecione uma turma para visualizar a grade horária.</p>
+    </div>
+    <div id="grade-matrix" style="display: none;"></div>
+</div>
+
+<!-- Report Slide-over (from cell click) -->
+<div class="drawer-overlay" id="slot-overlay" onclick="closeSlot()"></div>
+<div class="drawer" id="slot-drawer">
+    <div class="drawer-header">
+        <h3 id="slot-title">Detalhe do Horário</h3>
+        <button class="drawer-close" onclick="closeSlot()">✕</button>
+    </div>
+    <div id="slot-content" style="padding: 0.5rem;">
+        <div class="spinner"></div>
+    </div>
+</div>
+
+<!-- Grade Slot Modal (§5.2) -->
+<div class="drawer-overlay" id="grade-overlay" onclick="closeGradeModal()"></div>
+<div class="drawer" id="grade-drawer">
+    <div class="drawer-header">
+        <h3 id="grade-modal-title">Alocar Disciplina</h3>
+        <button class="drawer-close" onclick="closeGradeModal()">✕</button>
+    </div>
+    <div style="padding: 1.5rem;">
+        <form id="grade-form" onsubmit="saveGradeSlot(event)">
+            <input type="hidden" id="grade-id">
+            <div class="form-group">
+                <label class="form-label">Dia da Semana</label>
+                <select id="grade-dia" class="form-select" required>
+                    <option>Segunda</option>
+                    <option>Terça</option>
+                    <option>Quarta</option>
+                    <option>Quinta</option>
+                    <option>Sexta</option>
+                    <option>Sábado</option>
+                    <option>Domingo</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Início</label>
+                    <input type="time" id="grade-inicio" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fim</label>
+                    <input type="time" id="grade-fim" class="form-input" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Disciplina</label>
+                <select id="grade-disciplina" class="form-select" required>
+                    <option value="">Carregando...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Canal IPTV (Opcional)</label>
+                <input type="number" id="grade-canal" class="form-input" placeholder="Ex: 1">
+            </div>
+            <div style="display: flex; gap: 1rem; margin-top: 2rem;">
+                <button type="button" class="btn btn-secondary" style="flex: 1;"
+                    onclick="closeGradeModal()">Cancelar</button>
+                <button type="submit" class="btn btn-primary" style="flex: 2;">Guardar Alteração</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const DIAS_SEMANA = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+    const HORARIOS = ['1º Horário', '2º Horário', '3º Horário', '4º Horário', '5º Horário', '6º Horário', '7º Horário', '8º Horário'];
+    let ws = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) { window.location.href = '/'; return; }
+        loadUserProfile();
+
+        // Set current week
+        const now = new Date();
+        const weekInput = document.getElementById('grade-week');
+        const year = now.getFullYear();
+        const onejan = new Date(year, 0, 1);
+        const weekNum = Math.ceil(((now - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+        weekInput.value = `${year}-W${String(weekNum).padStart(2, '0')}`;
+
+        loadTurmas();
+        connectWebSocket();
+    });
+
+    async function loadTurmas() {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('/api/v1/turmas/', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const turmas = await res.json();
+                const sel = document.getElementById('turma-selector');
+                sel.innerHTML = '<option value="">Selecione uma turma...</option>';
+                turmas.forEach(t => {
+                    const dispName = t.nomenclatura_padrao || t.nome;
+                    sel.innerHTML += `<option value="${t.id}">${t.serie_modulo} - ${t.turno} - ${dispName}</option>`;
+                });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    function getWeekDates() {
+        const weekVal = document.getElementById('grade-week').value;
+        if (!weekVal) return [];
+        const [year, week] = weekVal.split('-W').map(Number);
+        // Get first day of the week (Monday)
+        const jan1 = new Date(year, 0, 1);
+        const dayOffset = jan1.getDay() || 7; // 1=Mon ... 7=Sun
+        const firstMonday = new Date(jan1);
+        firstMonday.setDate(jan1.getDate() + (1 - dayOffset) + (week - 1) * 7);
+
+        const dates = [];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(firstMonday);
+            d.setDate(firstMonday.getDate() + i);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+        return dates;
+    }
+
+    function prevWeek() {
+        const weekInput = document.getElementById('grade-week');
+        const d = new Date(document.getElementById('grade-week').valueAsDate || new Date());
+        d.setDate(d.getDate() - 7);
+        const year = d.getFullYear();
+        const onejan = new Date(year, 0, 1);
+        const weekNum = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+        weekInput.value = `${year}-W${String(Math.max(1, weekNum)).padStart(2, '0')}`;
+        loadGrade();
+    }
+
+    function nextWeek() {
+        const weekInput = document.getElementById('grade-week');
+        const d = new Date(document.getElementById('grade-week').valueAsDate || new Date());
+        d.setDate(d.getDate() + 7);
+        const year = d.getFullYear();
+        const onejan = new Date(year, 0, 1);
+        const weekNum = Math.ceil(((d - onejan) / 86400000 + onejan.getDay() + 1) / 7);
+        weekInput.value = `${year}-W${String(weekNum).padStart(2, '0')}`;
+        loadGrade();
+    }
+
+    async function loadGrade() {
+        const turmaId = document.getElementById('turma-selector').value;
+        if (!turmaId) {
+            document.getElementById('grade-empty').style.display = 'block';
+            document.getElementById('grade-matrix').style.display = 'none';
+            return;
+        }
+
+        const token = localStorage.getItem('access_token');
+        const dates = getWeekDates();
+        if (dates.length === 0) return;
+
+        try {
+            const params = new URLSearchParams({
+                turma_id: turmaId,
+                data_inicio: dates[0],
+                data_fim: dates[6],
+                limit: '200',
+            });
+
+            // Promessas paralelas para buscar Template da Grade e Relatórios Preenchidos
+            const [resReports, resTemplate] = await Promise.all([
+                fetch(`/api/v1/reports/?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+                fetch(`/api/v1/turmas/${turmaId}/grade`, { headers: { 'Authorization': `Bearer ${token}` } })
+            ]);
+
+            let reports = [];
+            if (resReports.ok) {
+                const data = await resReports.json();
+                reports = data.items || [];
+            }
+
+            let template = [];
+            if (resTemplate.ok) {
+                template = await resTemplate.json();
+            }
+
+            // Constructing Matrix
+            renderMatrix(dates, reports, template);
+        } catch (e) {
+            console.error(e);
+        }
+    }
+
+    function renderMatrix(dates, reports, template) {
+        document.getElementById('grade-empty').style.display = 'none';
+        document.getElementById('grade-matrix').style.display = 'block';
+
+        // 1. Organizar Slots da Grade
+        const timeSet = new Set();
+        const templateIdx = {};
+        template.forEach(t => {
+            let horarioLabel;
+            if (t.is_gravacao) {
+                horarioLabel = "GRAVAÇÃO";
+            } else {
+                horarioLabel = `${t.horario_inicio} às ${t.horario_fim}`;
+            }
+            timeSet.add(horarioLabel);
+            templateIdx[`${t.dia_semana}|${horarioLabel}`] = t;
+        });
+
+        // Eixo Y dinâmico
+        let columnHorarios = Array.from(timeSet);
+        if (columnHorarios.length === 0) {
+            columnHorarios = ['1º Horário', '2º Horário', '3º Horário', '4º Horário', '5º Horário', '6º Horário'];
+        } else {
+            columnHorarios.sort();
+        }
+
+        // Create index: date+horario → report
+        const reportsIdx = {};
+        reports.forEach(r => {
+            const key = `${r.data_aula}|${r.horario_aula}`;
+            reportsIdx[key] = r;
+        });
+
+        let html = '<div class="table-container"><table>';
+
+        // Header: Horário | Segunda (dd/mm) | Terça ...
+        html += '<thead><tr><th style="position: sticky; left: 0; z-index: 2; background: var(--bg-secondary);">HORÁRIO<br><br><button class="btn btn-secondary btn-sm" onclick="openAddModal()" style="font-size:0.6rem; padding: 2px 5px;">＋</button></th>';
+        dates.forEach((d, i) => {
+            const dateObj = new Date(d + 'T00:00:00');
+            const dd = String(dateObj.getDate()).padStart(2, '0');
+            const mm = String(dateObj.getMonth() + 1).padStart(2, '0');
+            const isWeekend = i >= 5;
+            html += `<th style="${isWeekend ? 'background: rgba(79, 70, 229, 0.08);' : ''}">${DIAS_SEMANA[i]}<br><span style="font-weight: 400; font-size: 0.65rem;">${dd}/${mm}</span></th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        // Rows: cada horário dinâmico
+        columnHorarios.forEach(horario => {
+            html += '<tr>';
+            html += `<td style="font-weight: 600; font-size: 0.8rem; white-space: nowrap; position: sticky; left: 0; background: var(--bg-card); z-index: 1;">
+                ${horario}
+                <div class="row-actions" style="font-size: 0.6rem; margin-top: 4px;">
+                    <span style="cursor:pointer; color: var(--accent-primary);" onclick="openEditRow('${horario}')">✎</span>
+                </div>
+            </td>`;
+
+            dates.forEach((d, i) => {
+                const diaNome = DIAS_SEMANA[i];
+                const keyReport = `${d}|${horario}`;
+                const keyTemplate = `${diaNome}|${horario}`;
+
+                const report = reportsIdx[keyReport];
+                const temp = templateIdx[keyTemplate];
+
+                const isWeekend = i >= 5;
+                const cellBg = isWeekend ? 'background: rgba(79, 70, 229, 0.03);' : '';
+
+                if (report) {
+                    const statusColor = report.status === 'FINALIZADO' ? 'var(--status-green)' :
+                        report.status === 'CANCELADO' ? 'var(--status-red)' :
+                            'var(--status-yellow)';
+                    html += `<td class="grade-slot occupied" style="border-left: 3px solid ${statusColor}; ${cellBg} cursor: pointer;" onclick="openSlotDetail('${report.id}')">
+                        <div class="slot-turma">${report.tipo_aula}</div>
+                        <div class="slot-disciplina" style="font-weight: 600;">${report.canal_utilizado}</div>
+                        <div style="margin-top: 2px;"><span class="badge badge-${report.status === 'FINALIZADO' ? 'green' : report.status === 'CANCELADO' ? 'red' : 'yellow'}" style="font-size: 0.55rem;">${report.status}</span></div>
+                    </td>`;
+                } else if (temp) {
+                    html += `<td class="grade-slot" style="border-left: 3px solid #3b82f6; ${cellBg} position: relative;">
+                        <div onclick="openNewReport('${d}', '${horario}', '${temp.disciplina_id}')" style="cursor: pointer;">
+                            <div class="slot-disciplina" style="font-weight: 500;">${temp.disciplina_nome}</div>
+                            <div style="margin-top: 2px; color: var(--text-muted); font-size: 0.65rem;">Canal ${temp.canal_iptv || ''}</div>
+                        </div>
+                        <div class="slot-delete" onclick="deleteGradeSlot('${temp.id}')" style="position: absolute; top: 2px; right: 2px; font-size: 0.6rem; color: var(--status-red); cursor: pointer; opacity: 0;">✕</div>
+                        <div style="opacity: 0; transition: opacity 0.2s; position:absolute; top: 0; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.4); display: flex; align-items:center; justify-content:center; border-radius: 4px; pointer-events: none;" class="add-hint">
+                            <span style="font-size: 1.25rem; font-weight:bold; color: white;">+</span>
+                        </div>
+                    </td>`;
+                } else {
+                    html += `<td class="grade-slot" style="${cellBg}" onclick="openNewReport('${d}', '${horario}')">
+                        <div style="opacity: 0; transition: opacity 0.2s;" class="add-hint">
+                            <span style="font-size: 1.25rem; color: var(--text-muted);">+</span>
+                        </div>
+                    </td>`;
+                }
+            });
+
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+        document.getElementById('grade-matrix').innerHTML = html;
+
+        // Mouse events for non-occupied
+        document.querySelectorAll('.grade-slot:not(.occupied)').forEach(cell => {
+            cell.addEventListener('mouseenter', () => {
+                const hint = cell.querySelector('.add-hint');
+                if (hint) hint.style.opacity = '1';
+                const del = cell.querySelector('.slot-delete');
+                if (del) del.style.opacity = '0.6';
+            });
+            cell.addEventListener('mouseleave', () => {
+                const hint = cell.querySelector('.add-hint');
+                if (hint) hint.style.opacity = '0';
+                const del = cell.querySelector('.slot-delete');
+                if (del) del.style.opacity = '0';
+            });
+        });
+    }
+
+    function openAddModal() {
+        document.getElementById('grade-modal-title').textContent = 'Novo Slot na Grade';
+        document.getElementById('grade-id').value = '';
+        document.getElementById('grade-form').reset();
+        openGradeModal();
+        loadModalDisciplinas();
+    }
+
+    function openGradeModal() {
+        document.getElementById('grade-overlay').classList.add('open');
+        document.getElementById('grade-drawer').classList.add('open');
+    }
+
+    function closeGradeModal() {
+        document.getElementById('grade-overlay').classList.remove('open');
+        document.getElementById('grade-drawer').classList.remove('open');
+    }
+
+    async function loadModalDisciplinas() {
+        const token = localStorage.getItem('access_token');
+        const sel = document.getElementById('grade-disciplina');
+        sel.innerHTML = '<option value="">Carregando...</option>';
+        try {
+            const res = await fetch('/api/v1/reports/lookup/disciplinas', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const data = await res.json();
+                sel.innerHTML = '<option value="">Selecione...</option>';
+                data.forEach(d => {
+                    sel.innerHTML += `<option value="${d.id}">${d.nome}</option>`;
+                });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function saveGradeSlot(e) {
+        e.preventDefault();
+        const turmaId = document.getElementById('turma-selector').value;
+        const token = localStorage.getItem('access_token');
+
+        const body = {
+            dia_semana: document.getElementById('grade-dia').value,
+            horario_inicio: document.getElementById('grade-inicio').value,
+            horario_fim: document.getElementById('grade-fim').value,
+            disciplina_id: document.getElementById('grade-disciplina').value,
+            canal_iptv: parseInt(document.getElementById('grade-canal').value) || null
+        };
+
+        try {
+            const res = await fetch(`/api/v1/turmas/${turmaId}/grade`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+            if (res.ok) {
+                closeGradeModal();
+                loadGrade();
+            } else {
+                const err = await res.json();
+                alert(err.detail || 'Erro ao salvar slot');
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function deleteGradeSlot(id) {
+        if (!confirm('Tem certeza que deseja remover este horário da grade?')) return;
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`/api/v1/turmas/grade/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) loadGrade();
+        } catch (e) { console.error(e); }
+    }
+
+    function openNewReport(date, horario, disciplinaId = '') {
+        const turmaId = document.getElementById('turma-selector').value;
+        let url = `/report?data=${date}&horario=${encodeURIComponent(horario)}&turma=${turmaId}`;
+        if (disciplinaId) url += `&disciplina=${disciplinaId}`;
+        window.location.href = url;
+    }
+
+    async function openSlotDetail(reportId) {
+        const token = localStorage.getItem('access_token');
+        document.getElementById('slot-overlay').classList.add('open');
+        document.getElementById('slot-drawer').classList.add('open');
+        document.getElementById('slot-content').innerHTML = '<div class="spinner"></div>';
+
+        try {
+            const res = await fetch(`/api/v1/reports/${reportId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!res.ok) throw new Error('Erro');
+            const r = await res.json();
+
+            document.getElementById('slot-title').textContent = `📝 ${r.tipo_aula} — ${r.data_aula}`;
+            document.getElementById('slot-content').innerHTML = `
+                <div style="display: grid; gap: 1rem;">
+                    <div style="text-align: center;"><span class="badge badge-${r.status === 'FINALIZADO' ? 'green' : r.status === 'CANCELADO' ? 'red' : 'yellow'}" style="font-size: 0.85rem; padding: 0.4rem 1rem;">${r.status}</span></div>
+                    <div class="detail-grid">
+                        <div class="detail-item"><span class="detail-label">Turno</span><span>${r.turno}</span></div>
+                        <div class="detail-item"><span class="detail-label">Estúdio</span><span>${r.estudio}</span></div>
+                        <div class="detail-item"><span class="detail-label">Horário</span><span>${r.horario_aula}</span></div>
+                        <div class="detail-item"><span class="detail-label">Canal</span><span>${r.canal_utilizado}</span></div>
+                    </div>
+                    <div>
+                        <div class="detail-label">Conteúdo Ministrado</div>
+                        <p style="margin-top: 0.25rem; font-size: 0.9rem;">${r.conteudo_ministrado}</p>
+                    </div>
+                    ${r.nome_ficheiro_gerado ? `<div class="naming-preview">${r.nome_ficheiro_gerado}</div>` : ''}
+                    <div class="detail-grid">
+                        <div class="detail-item"><span class="detail-label">Atraso</span><span>${r.teve_atraso ? r.minutos_atraso + ' min' : 'Não'}</span></div>
+                        <div class="detail-item"><span class="detail-label">Substituição</span><span>${r.teve_substituicao ? 'Sim' : 'Não'}</span></div>
+                        <div class="detail-item"><span class="detail-label">Problema</span><span>${r.problema_material}</span></div>
+                    </div>
+                </div>
+            `;
+        } catch (e) {
+            document.getElementById('slot-content').innerHTML = '<p style="color: var(--status-red);">Erro ao carregar.</p>';
+        }
+    }
+
+    function closeSlot() {
+        document.getElementById('slot-overlay').classList.remove('open');
+        document.getElementById('slot-drawer').classList.remove('open');
+    }
+
+    // WebSocket
+    function connectWebSocket() {
+        const token = localStorage.getItem('access_token');
+        const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        try {
+            ws = new WebSocket(`${protocol}://${window.location.host}/ws/grade?token=${token}`);
+            ws.onopen = () => {
+                document.getElementById('ws-text').textContent = 'Ao vivo';
+            };
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'grade_update') {
+                    loadGrade(); // Refresh on update
+                }
+            };
+            ws.onclose = () => {
+                document.getElementById('ws-text').textContent = 'Desconectado';
+                setTimeout(connectWebSocket, 5000);
+            };
+            ws.onerror = () => {
+                document.getElementById('ws-text').textContent = 'Erro';
+            };
+        } catch (e) {
+            document.getElementById('ws-text').textContent = 'Offline';
+        }
+    }
+</script>
+{% endblock %}

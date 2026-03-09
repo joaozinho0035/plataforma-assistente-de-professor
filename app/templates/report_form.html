@@ -1,0 +1,688 @@
+{% extends "base.html" %}
+{% block title %}Relatório de Aula — Canal Educação{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1 class="page-title">📝 Relatório de Aula</h1>
+        <p class="page-subtitle">Formulário do Assistente — Preenchimento operacional</p>
+    </div>
+    <a href="/grade" class="btn btn-secondary btn-sm">← Voltar à Grade</a>
+</div>
+
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; max-width: 1200px;">
+    <!-- Left Column: Execução -->
+    <div class="card">
+        <form id="report-form" onsubmit="submitReport(event)">
+
+            <!-- B. Contexto Operacional (Read-only header) -->
+            <div class="form-section-title">📌 Contexto Operacional</div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Data da Aula</label>
+                    <input type="date" id="data_aula" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Turno</label>
+                    <select id="turno" class="form-select" required onchange="updateNaming()">
+                        <option value="">Selecione...</option>
+                        <option value="Manhã">Manhã</option>
+                        <option value="Tarde">Tarde</option>
+                        <option value="Noite">Noite</option>
+                        <option value="FDS manhã">FDS manhã</option>
+                        <option value="FDS tarde">FDS tarde</option>
+                        <option value="FDS noite">FDS noite</option>
+                        <option value="Outro">Outro</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Estúdio</label>
+                    <select id="estudio" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        <option>Estúdio 01</option>
+                        <option>Estúdio 02</option>
+                        <option>Estúdio 03</option>
+                        <option>Estúdio 04</option>
+                        <option>Estúdio 05</option>
+                        <option>Estúdio 06</option>
+                        <option>Estúdio 07</option>
+                        <option>Estúdio 08</option>
+                        <option>Estúdio 09</option>
+                        <option>Externo</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Turma</label>
+                    <select id="turma_id" class="form-select" required onchange="onTurmaChange(); updateNaming()">
+                        <option value="">Carregando...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Disciplina</label>
+                    <select id="disciplina_id" class="form-select" required
+                        onchange="onDisciplinaChange(); updateNaming()">
+                        <option value="">Selecione turma primeiro...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Professor(a)</label>
+                    <select id="professor_id" class="form-select" required>
+                        <option value="">Selecione disciplina primeiro...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Horário da Aula</label>
+                    <select id="horario_aula" class="form-select" required>
+                        <option value="">Selecione...</option>
+                        <option>1º Horário</option>
+                        <option>2º Horário</option>
+                        <option>3º Horário</option>
+                        <option>4º Horário</option>
+                        <option>5º Horário</option>
+                        <option>6º Horário</option>
+                        <option>7º Horário</option>
+                        <option>8º Horário</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Regular</label>
+                    <select id="regular" class="form-select">
+                        <option value="Sim">Sim</option>
+                        <option value="Não">Não</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- C. Detalhes da Execução -->
+            <div class="form-section">
+                <div class="form-section-title">🎬 Detalhes da Execução</div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Tipo de Aula</label>
+                        <select id="tipo_aula" class="form-select" required>
+                            <option value="">Selecione...</option>
+                            <option>Manutenção de estúdio</option>
+                            <option>Planejamento Pedagógico</option>
+                            <option>Videoconferência</option>
+                            <option>Gravação estúdio</option>
+                            <option>UAPI</option>
+                            <option>Transmissão ao vivo</option>
+                            <option>Gravação externa</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Canal Utilizado</label>
+                        <select id="canal_utilizado" class="form-select" required>
+                            <option value="">Selecione...</option>
+                            <option>Canal SEDUC PI 1</option>
+                            <option>Canal SEDUC PI 2</option>
+                            <option>Canal SEDUC PI 3</option>
+                            <option>Canal SEDUC PI 4</option>
+                            <option>Canal SEDUC PI 5</option>
+                            <option>Canal SEDUC PI 6</option>
+                            <option>Canal SEDUC PI 7</option>
+                            <option>Canal SEDUC PI 8</option>
+                            <option>Canal SEDUC PI 9</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Conteúdo Ministrado (máx. 100 chars)</label>
+                    <input type="text" id="conteudo_ministrado" class="form-input" maxlength="100"
+                        placeholder="Descreva o conteúdo da aula..." required oninput="updateNaming()">
+                    <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+                        <span style="font-size: 0.7rem; color: var(--text-muted);"><span id="char-count">0</span>/100
+                            caracteres</span>
+                        <span style="font-size: 0.65rem; color: var(--status-yellow);">⚠️ Use P1/P2/P3 em aulas
+                            geminadas</span>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Interação Professor-Aluno</label>
+                        <select id="interacao_professor_aluno" class="form-select"
+                            onchange="toggleConditional('interacao')">
+                            <option value="Não">Não</option>
+                            <option value="Chat">Chat</option>
+                            <option value="Videoconferência">Videoconferência</option>
+                            <option value="Chat e vídeo">Chat e vídeo</option>
+                            <option value="Outras">Outras</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Atividade Prática</label>
+                        <select id="atividade_pratica" class="form-select">
+                            <option value="">Nenhuma</option>
+                            <option>Exercício teórico</option>
+                            <option>Exercício prático</option>
+                            <option>Dinâmica</option>
+                            <option>Debates</option>
+                        </select>
+                    </div>
+                </div>
+                <!-- Conditional: Interação Outras -->
+                <div id="field-interacao-outras" class="conditional-field">
+                    <div class="form-group">
+                        <label class="form-label">Descreva a Interação</label>
+                        <input type="text" id="interacao_outras_desc" class="form-input"
+                            placeholder="Descreva a interação...">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Observações</label>
+                    <textarea id="observacoes" class="form-textarea"
+                        placeholder="Notas gerais sobre a execução (opcional)..."></textarea>
+                </div>
+            </div>
+
+            <!-- Naming Engine Preview (§5.2 Crítico) -->
+            <div class="naming-preview" id="naming-preview">
+                <span style="color: var(--text-muted); font-size: 0.7rem;">PREVIEW DO FICHEIRO</span><br>
+                <span id="naming-output">Preencha os campos acima...</span>
+            </div>
+
+            <!-- Actions Footer -->
+            <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
+                <button type="button" class="btn btn-danger" style="flex: 0.5;" onclick="cancelarAula()">
+                    ❌ Cancelar Aula
+                </button>
+                <button type="submit" class="btn"
+                    style="flex: 1; background: linear-gradient(135deg, #f59e0b, #d97706); color: #fff;">
+                    💾 Salvar Rascunho
+                </button>
+                <button type="button" class="btn btn-primary" style="flex: 1;" onclick="finalizarReport()">
+                    ✅ Finalizar
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Right Column: Ocorrências / Compliance / Recursos -->
+    <div>
+        <div class="card" style="margin-bottom: 1.5rem;">
+            <div class="form-section-title">📦 Recursos e Materiais</div>
+            <div class="form-group">
+                <label class="form-label">Recursos Utilizados</label>
+                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                    <label
+                        style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; color: var(--text-secondary);">
+                        <input type="checkbox" value="vídeo" class="recurso-check"> vídeo
+                    </label>
+                    <label
+                        style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; color: var(--text-secondary);">
+                        <input type="checkbox" value="chroma key" class="recurso-check"> chroma key
+                    </label>
+                    <label
+                        style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; color: var(--text-secondary);">
+                        <input type="checkbox" value="animação" class="recurso-check"> animação
+                    </label>
+                    <label
+                        style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; color: var(--text-secondary);">
+                        <input type="checkbox" value="alpha" class="recurso-check"> alpha
+                    </label>
+                    <label
+                        style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; color: var(--text-secondary);">
+                        <input type="checkbox" value="Internet" class="recurso-check"> Internet
+                    </label>
+                    <label
+                        style="font-size: 0.85rem; display: flex; align-items: center; gap: 4px; color: var(--text-secondary);">
+                        <input type="checkbox" value="Outro" class="recurso-check"
+                            onchange="toggleConditional('recurso')"> Outro
+                    </label>
+                </div>
+            </div>
+            <div id="field-recurso-outro" class="conditional-field">
+                <div class="form-group">
+                    <label class="form-label">Descreva o Recurso</label>
+                    <input type="text" id="recursos_outro_desc" class="form-input" placeholder="Qual recurso?">
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Problema com Material</label>
+                <select id="problema_material" class="form-select" onchange="toggleConditional('problema')">
+                    <option value="Não">Não</option>
+                    <option>Atraso na entrega</option>
+                    <option>Alteração</option>
+                    <option>Não entregue</option>
+                    <option>Problemas técnicos</option>
+                    <option value="Outros">Outros</option>
+                </select>
+            </div>
+            <div id="field-problema-outro" class="conditional-field">
+                <div class="form-group">
+                    <label class="form-label">Descreva o Problema</label>
+                    <input type="text" id="problema_material_outro_desc" class="form-input"
+                        placeholder="Detalhe o problema...">
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="form-section-title">⚠️ Ocorrências Operacionais</div>
+            <div class="form-group">
+                <label class="form-label">Houve Substituição?</label>
+                <select id="teve_substituicao" class="form-select" onchange="toggleConditional('substituicao')">
+                    <option value="false">Não</option>
+                    <option value="true">Sim</option>
+                </select>
+            </div>
+            <div id="field-substituicao" class="conditional-field">
+                <div class="form-group">
+                    <label class="form-label">Professor Substituto</label>
+                    <select id="professor_substituto_id" class="form-select">
+                        <option value="">Selecione...</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Houve Atraso?</label>
+                <select id="teve_atraso" class="form-select" onchange="toggleConditional('atraso')">
+                    <option value="false">Não</option>
+                    <option value="true">Sim</option>
+                </select>
+            </div>
+            <div id="field-atraso" class="conditional-field">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Minutos de Atraso</label>
+                        <select id="minutos_atraso" class="form-select">
+                            <option value="">Selecione...</option>
+                            <option>5</option>
+                            <option>10</option>
+                            <option>15</option>
+                            <option>20</option>
+                            <option>25</option>
+                            <option>30</option>
+                            <option>35</option>
+                            <option>40</option>
+                            <option>45</option>
+                            <option>50</option>
+                            <option>55</option>
+                            <option>60</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Observação do Atraso</label>
+                        <input type="text" id="observacao_atraso" class="form-input"
+                            placeholder="Justificativa do atraso">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cancel Justification Modal -->
+<div class="drawer-overlay" id="cancel-overlay" onclick="closeCancelModal()"></div>
+<div class="drawer" id="cancel-drawer">
+    <div class="drawer-header">
+        <h3>❌ Cancelar Aula (RN-05)</h3>
+        <button class="drawer-close" onclick="closeCancelModal()">✕</button>
+    </div>
+    <div class="form-group" style="padding: 1rem;">
+        <label class="form-label">Justificativa do Cancelamento</label>
+        <textarea id="cancel-justificativa" class="form-textarea" rows="4"
+            placeholder="Descreva o motivo do cancelamento..." required></textarea>
+        <button class="btn btn-danger btn-full" style="margin-top: 1rem;" onclick="confirmCancel()">
+            Confirmar Cancelamento
+        </button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let turmasData = [];
+    let lastSavedId = null;
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const token = localStorage.getItem('access_token');
+        if (!token) { window.location.href = '/'; return; }
+        loadUserProfile();
+
+        // 1. Data load first
+        await Promise.all([
+            loadTurmas(),
+            loadAllProfessores()
+        ]);
+
+        // 2. Pre-fill from URL params
+        const params = new URLSearchParams(window.location.search);
+
+        // Data Aula
+        if (params.get('data')) document.getElementById('data_aula').value = params.get('data');
+
+        // Estúdio
+        if (params.get('estudio')) document.getElementById('estudio').value = params.get('estudio');
+
+        // Horário (Dynamic handling)
+        const hora = params.get('horario');
+        if (hora) {
+            const selHorario = document.getElementById('horario_aula');
+            // Check if option exists
+            let exists = Array.from(selHorario.options).some(opt => opt.value === hora);
+            if (!exists) {
+                // Add custom option from Grade
+                const newOpt = new Option(hora, hora);
+                selHorario.add(newOpt);
+            }
+            selHorario.value = hora;
+
+            // Detect turno from time
+            if (hora.toLowerCase() !== 'gravação') {
+                const h = parseInt(hora.split(':')[0]);
+                if (h < 12) document.getElementById('turno').value = 'Manhã';
+                else if (h < 18) document.getElementById('turno').value = 'Tarde';
+                else document.getElementById('turno').value = 'Noite';
+            }
+        }
+
+        // Turma & Disciplina (Cascading after data is loaded)
+        const preTurma = params.get('turma');
+        if (preTurma) {
+            const selTurma = document.getElementById('turma_id');
+            selTurma.value = preTurma;
+            await onTurmaChange();
+
+            const preDisc = params.get('disciplina');
+            if (preDisc) {
+                const selDisc = document.getElementById('disciplina_id');
+                selDisc.value = preDisc;
+                await onDisciplinaChange();
+            }
+        }
+
+        updateNaming();
+
+        // Character counter
+        const conteudo = document.getElementById('conteudo_ministrado');
+        conteudo.addEventListener('input', () => {
+            document.getElementById('char-count').textContent = conteudo.value.length;
+        });
+    });
+
+    async function loadTurmas() {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('/api/v1/turmas/', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                turmasData = await res.json();
+                const sel = document.getElementById('turma_id');
+                sel.innerHTML = '<option value="">Selecione a turma...</option>';
+                turmasData.forEach(t => {
+                    const dispName = t.nomenclatura_padrao || t.nome;
+                    const fullLabel = `${t.serie_modulo} - ${t.turno} - ${dispName}`;
+                    sel.innerHTML += `<option value="${t.id}" data-modalidade="${t.modalidade}" data-serie="${t.serie_modulo}" data-nomenclatura="${dispName}">${fullLabel}</option>`;
+                });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function onTurmaChange() {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('/api/v1/reports/lookup/disciplinas', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const discs = await res.json();
+                const sel = document.getElementById('disciplina_id');
+                sel.innerHTML = '<option value="">Selecione a disciplina...</option>';
+                discs.forEach(d => {
+                    sel.innerHTML += `<option value="${d.id}">${d.nome}</option>`;
+                });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function onDisciplinaChange() {
+        const token = localStorage.getItem('access_token');
+        const discId = document.getElementById('disciplina_id').value;
+        if (!discId) return;
+
+        try {
+            const res = await fetch(`/api/v1/reports/lookup/professores-por-disciplina/${discId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const profs = await res.json();
+                const sel = document.getElementById('professor_id');
+                sel.innerHTML = '<option value="">Selecione o professor...</option>';
+                profs.forEach(p => {
+                    sel.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+                });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    async function loadAllProfessores() {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch('/api/v1/reports/lookup/professores', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const profs = await res.json();
+                const sel = document.getElementById('professor_substituto_id');
+                sel.innerHTML = '<option value="">Selecione...</option>';
+                profs.forEach(p => {
+                    sel.innerHTML += `<option value="${p.id}">${p.nome}</option>`;
+                });
+            }
+        } catch (e) { console.error(e); }
+    }
+
+    // ─── Naming Engine Preview (§5.2 Crítico) ───────────────────────
+    function removeAccents(str) {
+        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    function sanitize(str) {
+        let s = removeAccents(str);
+        s = s.replace(/[\\/:*?"<>|_-]/g, '');
+        s = s.replace(/\s+/g, ' ').trim();
+        return s.toUpperCase().substring(0, 100);
+    }
+
+    function updateNaming() {
+        const turmaSelect = document.getElementById('turma_id');
+        const selected = turmaSelect.options[turmaSelect.selectedIndex];
+        const nomenclatura = selected?.dataset?.nomenclatura || '';
+        const discSelect = document.getElementById('disciplina_id');
+        const disciplina = discSelect.options[discSelect.selectedIndex]?.text || '';
+        const dataAula = document.getElementById('data_aula').value;
+        const conteudo = document.getElementById('conteudo_ministrado').value;
+
+        if (!nomenclatura && !conteudo) {
+            document.getElementById('naming-output').textContent = 'Preencha os campos acima...';
+            return;
+        }
+
+        // Format date
+        let dataStr = '';
+        if (dataAula) {
+            const d = new Date(dataAula + 'T00:00:00');
+            dataStr = String(d.getDate()).padStart(2, '0') + ' ' +
+                String(d.getMonth() + 1).padStart(2, '0') + ' ' +
+                String(d.getFullYear()).toString().slice(-2);
+        }
+
+        // Turno já está embutido na nomenclatura (MANHÃ, TARDE, NOITE, TI)
+        const parts = [
+            removeAccents(nomenclatura).toUpperCase(),
+            removeAccents(disciplina).toUpperCase(),
+            dataStr,
+            sanitize(conteudo),
+        ].filter(p => p);
+
+        const nome = parts.join(' ');
+        document.getElementById('naming-output').textContent = nome || 'Preencha os campos acima...';
+    }
+
+    // Conditional field toggling
+    function toggleConditional(type) {
+        if (type === 'interacao') {
+            const val = document.getElementById('interacao_professor_aluno').value;
+            document.getElementById('field-interacao-outras').classList.toggle('visible', val === 'Outras');
+        }
+        if (type === 'recurso') {
+            const checked = document.querySelector('.recurso-check[value="Outro"]').checked;
+            document.getElementById('field-recurso-outro').classList.toggle('visible', checked);
+        }
+        if (type === 'problema') {
+            const val = document.getElementById('problema_material').value;
+            document.getElementById('field-problema-outro').classList.toggle('visible', val === 'Outros');
+        }
+        if (type === 'substituicao') {
+            const val = document.getElementById('teve_substituicao').value === 'true';
+            document.getElementById('field-substituicao').classList.toggle('visible', val);
+        }
+        if (type === 'atraso') {
+            const val = document.getElementById('teve_atraso').value === 'true';
+            document.getElementById('field-atraso').classList.toggle('visible', val);
+        }
+    }
+
+    function buildReportBody() {
+        const recursos = [];
+        document.querySelectorAll('.recurso-check:checked').forEach(cb => recursos.push(cb.value));
+
+        return {
+            data_aula: document.getElementById('data_aula').value,
+            turno: document.getElementById('turno').value,
+            estudio: document.getElementById('estudio').value,
+            turma_id: document.getElementById('turma_id').value,
+            disciplina_id: document.getElementById('disciplina_id').value,
+            professor_id: document.getElementById('professor_id').value,
+            horario_aula: document.getElementById('horario_aula').value,
+            regular: document.getElementById('regular').value,
+            tipo_aula: document.getElementById('tipo_aula').value,
+            canal_utilizado: document.getElementById('canal_utilizado').value,
+            conteudo_ministrado: document.getElementById('conteudo_ministrado').value,
+            interacao_professor_aluno: document.getElementById('interacao_professor_aluno').value,
+            interacao_outras_desc: document.getElementById('interacao_outras_desc').value || null,
+            atividade_pratica: document.getElementById('atividade_pratica').value || null,
+            observacoes: document.getElementById('observacoes').value || null,
+            tipo_recursos_utilizados: recursos.length > 0 ? recursos : null,
+            recursos_outro_desc: document.getElementById('recursos_outro_desc').value || null,
+            problema_material: document.getElementById('problema_material').value,
+            problema_material_outro_desc: document.getElementById('problema_material_outro_desc').value || null,
+            teve_substituicao: document.getElementById('teve_substituicao').value === 'true',
+            professor_substituto_id: document.getElementById('professor_substituto_id').value || null,
+            teve_atraso: document.getElementById('teve_atraso').value === 'true',
+            minutos_atraso: document.getElementById('minutos_atraso').value ? parseInt(document.getElementById('minutos_atraso').value) : null,
+            observacao_atraso: document.getElementById('observacao_atraso').value || null,
+        };
+    }
+
+    async function handleResponse(res) {
+        if (!res.ok) {
+            let errorMsg = 'Erro na operação.';
+            try {
+                const data = await res.json();
+                if (data.detail) {
+                    if (Array.isArray(data.detail)) {
+                        errorMsg = data.detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join(' | ');
+                    } else {
+                        errorMsg = data.detail;
+                    }
+                }
+            } catch (e) {
+                // If not JSON, it might be a server error
+                errorMsg = `Erro do Servidor (Status ${res.status}).`;
+            }
+            throw new Error(errorMsg);
+        }
+        return res.json();
+    }
+
+    async function submitReport(e) {
+        if (e) e.preventDefault();
+        const token = localStorage.getItem('access_token');
+        const body = buildReportBody();
+
+        try {
+            const res = await fetch('/api/v1/reports/', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(body),
+            });
+
+            const data = await handleResponse(res);
+            lastSavedId = data.id;
+            showToast('Relatório salvo como rascunho!', 'success');
+            return data;
+        } catch (err) {
+            showToast(err.message, 'error');
+            throw err;
+        }
+    }
+
+    async function finalizarReport() {
+        const token = localStorage.getItem('access_token');
+        try {
+            // 1. Always save/update draft first to ensure latest content
+            const draft = await submitReport();
+            const reportId = draft.id;
+
+            // 2. Finalize
+            const res = await fetch(`/api/v1/reports/${reportId}/finalizar`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}` },
+            });
+
+            await handleResponse(res);
+            showToast('Relatório finalizado com sucesso!', 'success');
+            setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+        } catch (err) {
+            // Error already toasted by submitReport or here
+            if (err.message) showToast(err.message, 'error');
+        }
+    }
+
+    function cancelarAula() {
+        document.getElementById('cancel-overlay').classList.add('open');
+        document.getElementById('cancel-drawer').classList.add('open');
+    }
+
+    function closeCancelModal() {
+        document.getElementById('cancel-overlay').classList.remove('open');
+        document.getElementById('cancel-drawer').classList.remove('open');
+    }
+
+    async function confirmCancel() {
+        const justificativa = document.getElementById('cancel-justificativa').value;
+        if (!justificativa) { showToast('Justificativa obrigatória.', 'error'); return; }
+
+        if (!lastSavedId) {
+            showToast('Salve o relatório antes de cancelar.', 'error');
+            return;
+        }
+
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`/api/v1/reports/${lastSavedId}/cancelar`, {
+                method: 'PATCH',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ justificativa }),
+            });
+
+            await handleResponse(res);
+            showToast('Aula cancelada.', 'success');
+            closeCancelModal();
+            setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+        } catch (err) {
+            showToast(err.message, 'error');
+        }
+    }
+</script>
+{% endblock %}
