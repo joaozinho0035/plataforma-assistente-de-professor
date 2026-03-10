@@ -41,12 +41,22 @@ def buscar_video_no_drive(nome_arquivo: str):
     if not service:
         return None
 
-    query = f"name contains '{nome_arquivo}' and trashed = false"
+    # Escape single quotes in the filename to prevent query syntax errors
+    nome_seguro = nome_arquivo.replace("'", "\\'")
+    folder_id = settings.GOOGLE_DRIVE_VIDEOS_FOLDER_ID
+    
+    # Query improved to search inside the specific folder and for the exact sanitized name
+    # Usando strict match "=" em vez de "contains" e adicionando a extensão .mp4
+    query = f"'{folder_id}' in parents and name = '{nome_seguro}.mp4' and trashed = false"
+    
     try:
         results = service.files().list(
             q=query, 
             fields="files(id, name, webViewLink, size, createdTime, mimeType)",
-            pageSize=1
+            pageSize=1,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+            corpora="allDrives"
         ).execute()
         
         items = results.get('files', [])
