@@ -115,7 +115,7 @@ def executar_migracao():
                     modalidade_inferida = inferir_modalidade(serie)
                     iptv = int(iptv_str) if iptv_str.isdigit() else None
                     
-                    # Gestão de Professores
+                    # Gestão de Professores atual
                     professor_db = None
                     if nome_professor:
                         professor_db = db.query(Professor).filter(Professor.nome == nome_professor).first()
