@@ -125,6 +125,7 @@ class ClassReportResponse(BaseModel):
 
     # G. Compliance Digital (§6)
     video_link: Optional[str] = None
+    video_folder_link: Optional[str] = None
     status_compliance: str = "Pendente"
 
     class Config:

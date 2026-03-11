@@ -276,6 +276,11 @@
                     <td>${r.estudio}</td>
                     <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${r.conteudo_ministrado}</td>
                     <td>${r.tipo_aula}</td>
+                    <td>
+                        <span class="badge badge-outline-${complianceBadge(r.status_compliance)}" title="Compliance: ${r.status_compliance}">
+                            ${complianceIcon(r.status_compliance)} ${r.status_compliance}
+                        </span>
+                    </td>
                     <td><span class="badge badge-${statusBadge(r.status)}">${r.status}</span></td>
                     <td>
                         ${r.teve_atraso ? '<span class="badge badge-yellow" title="Atraso">⏰</span>' : ''}
@@ -295,6 +300,7 @@
                                 <th>Estúdio</th>
                                 <th>Conteúdo</th>
                                 <th>Tipo</th>
+                                <th>Compliance</th>
                                 <th>Status</th>
                                 <th>Ocorrências</th>
                             </tr>
@@ -430,6 +436,25 @@
                         ${r.observacao_atraso ? `<div style="margin-top: 0.5rem;"><div class="detail-label">Obs. Atraso</div><p style="color: var(--text-secondary); font-size: 0.85rem;">${r.observacao_atraso}</p></div>` : ''}
                     </div>
 
+                    <!-- Compliance Digital (§6) -->
+                    <div>
+                        <div class="form-section-title">🛡️ Compliance Digital</div>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div class="detail-item">
+                                <span class="detail-label">Status Vídeo</span>
+                                <span class="badge badge-outline-${complianceBadge(r.status_compliance)}">${r.status_compliance}</span>
+                            </div>
+                            ${r.video_link ? `
+                            <a href="${r.video_link}" target="_blank" class="btn btn-sm btn-full" style="background: #10b981; color: white; text-decoration: none; text-align: center;">
+                                🎥 Ver Vídeo no Drive
+                            </a>` : ''}
+                            ${r.video_folder_link ? `
+                            <a href="${r.video_folder_link}" target="_blank" class="btn btn-sm btn-full" style="background: #3b82f6; color: white; text-decoration: none; text-align: center;">
+                                📂 Abrir Pasta do Drive
+                            </a>` : ''}
+                        </div>
+                    </div>
+
                     <!-- Naming Engine -->
                     ${r.nome_ficheiro_gerado ? `
                     <div>
@@ -454,6 +479,24 @@
             case 'RASCUNHO': return 'yellow';
             case 'CANCELADO': return 'red';
             default: return 'gray';
+        }
+    }
+
+    function complianceBadge(status) {
+        switch (status) {
+            case 'Verde': return 'green';
+            case 'Vermelho': return 'red';
+            case 'Pendente': return 'yellow';
+            default: return 'gray';
+        }
+    }
+
+    function complianceIcon(status) {
+        switch (status) {
+            case 'Verde': return '✅';
+            case 'Vermelho': return '❌';
+            case 'Pendente': return '⏳';
+            default: return '❓';
         }
     }
 </script>

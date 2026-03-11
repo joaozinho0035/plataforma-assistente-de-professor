@@ -5,6 +5,7 @@ Canal Educação v3.0 — Modelo de Relatório de Aula (class_reports).
 
 import uuid
 from datetime import datetime, timezone
+from app.core.config import get_settings
 
 from sqlalchemy import (
     Boolean,
@@ -87,6 +88,14 @@ class ClassReport(Base):
     # ─── G. Compliance Digital (§6) ──────────────────────────────────
     video_link = Column(String(1000), nullable=True)
     status_compliance = Column(String(20), default="Pendente", nullable=False) # Verde, Vermelho, Pendente
+
+    @property
+    def video_folder_link(self) -> str:
+        settings = get_settings()
+        folder_id = settings.GOOGLE_DRIVE_VIDEOS_FOLDER_ID
+        if not folder_id or folder_id == "id_pendente":
+            return None
+        return f"https://drive.google.com/drive/folders/{folder_id}"
 
     # ─── Relationships ───────────────────────────────────────────────
     creator = relationship("User", foreign_keys=[created_by])

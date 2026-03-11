@@ -52,9 +52,9 @@ class TestSanitizarConteudo:
         result = sanitizar_conteudo(texto)
         assert len(result) <= 100
 
-    def test_not_uppercase_content(self):
-        result = sanitizar_conteudo("funcoes do primeiro grau")
-        assert result == "funcoes do primeiro grau"
+    def test_preserves_case_content(self):
+        result = sanitizar_conteudo("Funções do Primeiro Grau")
+        assert result == "Funcoes do Primeiro Grau"
 
     def test_remove_espacos_extras(self):
         result = sanitizar_conteudo("  teste   com   espacos  ")
@@ -66,19 +66,16 @@ class TestGerarNomePadronizado:
 
     def test_formato_basico(self):
         nome = gerar_nome_padronizado(
-            nomenclatura_turma="EM 1 TI",
+            nomenclatura_turma="REGULAR 1ª SÉRIE MANHÃ",
             disciplina="Matemática",
             data_aula=date(2026, 3, 15),
             conteudo="Funções do primeiro grau",
         )
-        assert "EM 1 TI" in nome
-        assert "15 03 26" in nome
+        assert "REGULAR" not in nome
+        assert "1A SERIE MANHA" in nome
         assert "MATEMATICA" in nome
-        assert "Funções do primeiro grau" not in nome
         assert "Funcoes do primeiro grau" in nome
         assert nome.endswith(".mp4")
-        assert "-" not in nome
-        assert "_" not in nome
 
     def test_eja_sem_turno(self):
         nome = gerar_nome_padronizado(

@@ -538,6 +538,36 @@ a:hover {
     background: var(--status-blue);
 }
 
+/* ─── Outline Badges ─────────────────────────────────────────────── */
+
+.badge-outline-green {
+    border: 1px solid var(--status-green);
+    color: var(--status-green);
+    background: transparent;
+}
+.badge-outline-green::before { background: var(--status-green); }
+
+.badge-outline-yellow {
+    border: 1px solid var(--status-yellow);
+    color: var(--status-yellow);
+    background: transparent;
+}
+.badge-outline-yellow::before { background: var(--status-yellow); }
+
+.badge-outline-red {
+    border: 1px solid var(--status-red);
+    color: var(--status-red);
+    background: transparent;
+}
+.badge-outline-red::before { background: var(--status-red); }
+
+.badge-outline-gray {
+    border: 1px solid var(--status-gray);
+    color: var(--status-gray);
+    background: transparent;
+}
+.badge-outline-gray::before { background: var(--status-gray); }
+
 /* ─── Tables ─────────────────────────────────────────────────────── */
 
 .table-container {

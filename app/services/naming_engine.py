@@ -11,31 +11,39 @@ from datetime import date
 
 
 def remover_acentos(texto: str) -> str:
-    """Remove toda acentuação do texto (NFD decomposition)."""
-    normalizado = unicodedata.normalize("NFD", texto)
+    """Remove toda acentuação do texto (NFKD decomposition)."""
+    normalizado = unicodedata.normalize("NFKD", texto)
     return "".join(c for c in normalizado if unicodedata.category(c) != "Mn")
 
 
 def sanitizar_conteudo(texto: str) -> str:
     """
-    Sanitização completa conforme BA008:
+    Sanitização conforme novas regras:
     - Remove acentos
-    - Remove caracteres inválidos para filesystem: \\ / : * ? " < > |
-    - Remove hifens e underscores
-    - Remove espaços extras
+    - Remove especificamente: _ . , : ; ! ? / \ () [] {}
+    - Remove emojis/símbolos
+    - Normaliza espaços múltiplos para um único
+    - Preserva o case original (NÃO força uppercase)
     - Limita a 100 caracteres
-    - Converte para UPPERCASE
     """
-    # Remove acentos
+    # 1. Remove acentos
     texto = remover_acentos(texto)
 
-    # Remove caracteres proibidos (filesystem + hifens + underscores)
-    texto = re.sub(r'[\\/:*?"<>|\-_]', "", texto)
+    # 2. Remove caracteres específicos: _ . , : ; ! ? / \ () [] {}
+    # Usamos uma classe de caracteres no regex
+    texto = re.sub(r'[_.,:;!?/\\()\[\]{}]', "", texto)
 
-    # Remove espaços extras
+    # 3. Remove emojis e símbolos estranhos (mantém letras, números e espaços)
+    # \w inclui letras, números e underscore (mas já removemos underscore acima)
+    # Queremos manter espaços, então adicionamos \s
+    texto = re.sub(r'[^\w\s]', '', texto)
+    # Remove underscores remanescentes se houver (embora re.sub acima cuide disso)
+    texto = texto.replace('_', '')
+
+    # 4. Normaliza espaços múltiplos
     texto = re.sub(r"\s+", " ", texto).strip()
 
-    # Limita a 100 caracteres
+    # 5. Limita a 100 caracteres
     return texto[:100]
 
 
@@ -47,35 +55,43 @@ def gerar_nome_padronizado(
 ) -> str:
     """
     Gera o nome do ficheiro no formato exato:
-    [NOMENCLATURA_TURMA] [DISCIPLINA] [DATA] [CONTEUDO]
+    [TIPO/SERIE/TURNO] [DISCIPLINA] [DIA] [MES] [ANO] [CONTEUDO].mp4
 
     Regras:
-    - nomenclatura_turma vem da Coluna C do CSV (ex: EM 1 TI, EM 3 TARDE, EJA ETAPA V)
-    - O turno já está embutido na nomenclatura (MANHÃ, TARDE, NOITE, TI)
-    - Data no formato DD MM YY
-    - Sem hifens ou underscores em nenhum lugar
-    - Tudo em UPPERCASE
+    - O prefixo "REGULAR" deve ser removido se presente.
+    - Separado apenas por espaço.
+    - Sem hifens ou underscores.
+    - Sem acentos.
+    - .mp4 sempre minúsculo e não duplicado.
     """
-    data_formatada = data_aula.strftime("%d %m %y")
+    # 1. Limpa nomenclatura e remove "REGULAR" no início
+    turma_limpo = nomenclatura_turma.strip()
+    turma_limpo = re.sub(r'^REGULAR\s*', '', turma_limpo, flags=re.IGNORECASE)
+    turma_limpo = remover_acentos(turma_limpo).upper()
 
-    partes = [
-        remover_acentos(nomenclatura_turma.strip()).upper(),
-        remover_acentos(disciplina.strip()).upper(),
-        data_formatada,
-        sanitizar_conteudo(conteudo),
-    ]
+    # 2. Disciplina limpa
+    disc_limpo = remover_acentos(disciplina.strip()).upper()
 
-    # Junta as partes ignorando vazias, sem hifens/underscores
-    nome = " ".join(p for p in partes if p)
+    # 3. Data formatada (DD MM YY)
+    data_str = data_aula.strftime("%d %m %y")
 
-    # Sanitização final: remove hifens e underscores em todo o resultado
-    nome = re.sub(r"[\-_]", "", nome)
-    nome = re.sub(r"\s+", " ", nome).strip()
+    # 4. Conteúdo higienizado (preserva case)
+    cont_limpo = sanitizar_conteudo(conteudo)
 
-    # Garante que não duplique a extensão e coloca o .mp4 sempre em minúsculo
-    nome = re.sub(r'(?i)\.mp4$', '', nome).strip()
+    # 5. Monta o nome base
+    partes = [turma_limpo, disc_limpo, data_str, cont_limpo]
+    nome_base = " ".join(p for p in partes if p)
 
-    return f"{nome}.mp4"
+    # Limpeza final de hifens/underscores que possam ter sobrado
+    nome_base = re.sub(r'[\-_]', ' ', nome_base)
+    nome_base = re.sub(r'\s+', ' ', nome_base).strip()
+
+    # 6. Garante extensão .mp4 única e minúscula
+    # Remove qualquer .mp4 ou mp4 existente no final (case insensitive)
+    nome_final = re.sub(r'(?i)\.mp4$', '', nome_base).strip()
+    nome_final = re.sub(r'(?i)mp4$', '', nome_final).strip()
+    
+    return f"{nome_final}.mp4"
 
 
 def verificar_sufixo_geminada(conteudo: str) -> bool:

@@ -332,6 +332,28 @@
         </button>
     </div>
 </div>
+
+<!-- Success Modal -->
+<div class="drawer-overlay" id="success-overlay"></div>
+<div class="drawer" id="success-drawer">
+    <div class="drawer-header">
+        <h3 style="color: var(--status-green);">✅ Relatório Finalizado!</h3>
+    </div>
+    <div style="padding: 1.5rem; text-align: center;">
+        <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
+        <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">
+            O relatório foi salvo e a nomenclatura foi gerada. O vídeo será sincronizado em breve.
+        </p>
+        <div style="display: grid; gap: 0.75rem;">
+            <a id="success-drive-link" href="#" target="_blank" class="btn btn-primary btn-full" style="background: #3b82f6;">
+                📂 Abrir Pasta do Drive
+            </a>
+            <button class="btn btn-secondary btn-full" onclick="window.location.href='/dashboard'">
+                Ir para Dashboard
+            </button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -640,9 +662,18 @@
                 headers: { 'Authorization': `Bearer ${token}` },
             });
 
-            await handleResponse(res);
+            const data = await handleResponse(res);
             showToast('Relatório finalizado com sucesso!', 'success');
-            setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
+            
+            // Show success drawer
+            if (data.video_folder_link) {
+                document.getElementById('success-drive-link').href = data.video_folder_link;
+            }
+            document.getElementById('success-overlay').classList.add('open');
+            document.getElementById('success-drawer').classList.add('open');
+            
+            // Still redirect after a longer time if they don't click anything? 
+            // Better to let them click.
         } catch (err) {
             // Error already toasted by submitReport or here
             if (err.message) showToast(err.message, 'error');
