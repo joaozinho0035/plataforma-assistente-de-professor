@@ -36,10 +36,7 @@ def sanitizar_conteudo(texto: str) -> str:
     texto = re.sub(r"\s+", " ", texto).strip()
 
     # Limita a 100 caracteres
-    texto = texto[:100]
-
-    # Uppercase
-    return texto.upper()
+    return texto[:100]
 
 
 def gerar_nome_padronizado(
@@ -75,7 +72,10 @@ def gerar_nome_padronizado(
     nome = re.sub(r"[\-_]", "", nome)
     nome = re.sub(r"\s+", " ", nome).strip()
 
-    return nome
+    # Garante que não duplique a extensão e coloca o .mp4 sempre em minúsculo
+    nome = re.sub(r'(?i)\.mp4$', '', nome).strip()
+
+    return f"{nome}.mp4"
 
 
 def verificar_sufixo_geminada(conteudo: str) -> bool:

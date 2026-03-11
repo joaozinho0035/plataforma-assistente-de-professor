@@ -52,14 +52,14 @@ class TestSanitizarConteudo:
         result = sanitizar_conteudo(texto)
         assert len(result) <= 100
 
-    def test_uppercase(self):
+    def test_not_uppercase_content(self):
         result = sanitizar_conteudo("funcoes do primeiro grau")
-        assert result == "FUNCOES DO PRIMEIRO GRAU"
+        assert result == "funcoes do primeiro grau"
 
     def test_remove_espacos_extras(self):
         result = sanitizar_conteudo("  teste   com   espacos  ")
         assert "  " not in result
-        assert result == "TESTE COM ESPACOS"
+        assert result == "teste com espacos"
 
 
 class TestGerarNomePadronizado:
@@ -74,7 +74,9 @@ class TestGerarNomePadronizado:
         assert "EM 1 TI" in nome
         assert "15 03 26" in nome
         assert "MATEMATICA" in nome
-        assert "FUNCOES DO PRIMEIRO GRAU" in nome
+        assert "Funções do primeiro grau" not in nome
+        assert "Funcoes do primeiro grau" in nome
+        assert nome.endswith(".mp4")
         assert "-" not in nome
         assert "_" not in nome
 
@@ -87,6 +89,8 @@ class TestGerarNomePadronizado:
         )
         assert "EJA ETAPA V" in nome
         assert "PORTUGUES" in nome
+        assert "Analise Sintatica" in nome
+        assert nome.endswith(".mp4")
 
     def test_ejatec(self):
         nome = gerar_nome_padronizado(
@@ -97,6 +101,8 @@ class TestGerarNomePadronizado:
         )
         assert "EJATEC TEC ADM MOD1" in nome
         assert "FISICA" in nome
+        assert "Mecanica" in nome
+        assert nome.endswith(".mp4")
 
     def test_sem_acentos_no_resultado(self):
         nome = gerar_nome_padronizado(
@@ -108,6 +114,7 @@ class TestGerarNomePadronizado:
         assert "ã" not in nome
         assert "ç" not in nome
         assert "á" not in nome
+        assert nome.endswith(".mp4")
 
     def test_sem_hifens_underscores(self):
         nome = gerar_nome_padronizado(
@@ -118,6 +125,7 @@ class TestGerarNomePadronizado:
         )
         assert "-" not in nome
         assert "_" not in nome
+        assert nome.endswith(".mp4")
 
     def test_nomenclatura_noite(self):
         nome = gerar_nome_padronizado(
@@ -128,6 +136,8 @@ class TestGerarNomePadronizado:
         )
         assert "EM 1 NOITE" in nome
         assert "BIOLOGIA" in nome
+        assert "Celula animal" in nome
+        assert nome.endswith(".mp4")
 
     def test_turno_nao_duplica(self):
         """Regressão: 'EM 3 TARDE' NÃO deve gerar 'EM 3 TARDE TARDE'."""
@@ -137,9 +147,10 @@ class TestGerarNomePadronizado:
             data_aula=date(2026, 2, 25),
             conteudo="Jogos Populares Regionais",
         )
-        # Deve ser: EM 3 TARDE EDUCACAO FISICA 25 02 26 JOGOS POPULARES REGIONAIS
+        # Deve ser: EM 3 TARDE EDUCACAO FISICA 25 02 26 Jogos Populares Regionais.mp4
         assert nome.count("TARDE") == 1
         assert "EM 3 TARDE EDUCACAO FISICA" in nome
+        assert nome.endswith(".mp4")
 
 
 class TestVerificarSufixoGeminada:
