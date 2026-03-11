@@ -45,9 +45,9 @@ def buscar_video_no_drive(nome_arquivo: str):
     nome_seguro = nome_arquivo.replace("'", "\\'")
     folder_id = settings.GOOGLE_DRIVE_VIDEOS_FOLDER_ID
     
-    # Query improved to search inside the specific folder and for the exact sanitized name
-    # Usando strict match "=" em vez de "contains" e adicionando a extensão .mp4
-    query = f"'{folder_id}' in parents and name = '{nome_seguro}.mp4' and trashed = false"
+    # Query improved to search anywhere across all folders
+    # Usando 'contains' para não depender da extensão de ficheiro ou de pasta específica
+    query = f"name contains '{nome_seguro}' and trashed = false"
     
     try:
         results = service.files().list(
