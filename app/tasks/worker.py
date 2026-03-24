@@ -12,7 +12,15 @@ from app.services.sync_drive import buscar_video_no_drive
 
 settings = get_settings()
 
-@celery_app.task(bind=True, name="verificar_compliance_drive", max_retries=15, default_retry_delay=3600)
+@celery_app.task(
+    bind=True, 
+    name="verificar_compliance_drive", 
+    max_retries=15, 
+    autoretry_for=(Exception,), 
+    retry_backoff=True, 
+    retry_backoff_max=86400, 
+    retry_jitter=True
+)
 def verificar_compliance_drive(self, report_id: str, nome_padronizado: str):
     """
     Busca o arquivo no Drive e garante a gravação do link no banco de dados.
@@ -38,9 +46,9 @@ def verificar_compliance_drive(self, report_id: str, nome_padronizado: str):
             report.video_link = None
             db.commit()
 
-            # Dispara nova tentativa (retry) em 1 hora (3600s)
+            # Dispara nova tentativa (retry) via Exponential Backoff
             try:
-                raise self.retry(countdown=3600)
+                raise self.retry()
             except MaxRetriesExceededError:
                 print(f"[WORKER] ❌ Limite máximo de tentativas esgotado para: {nome_padronizado}")
                 report.status_compliance = "Vermelho"
@@ -48,9 +56,34 @@ def verificar_compliance_drive(self, report_id: str, nome_padronizado: str):
                 return False
         else:
             link_encontrado = video_drive.get('webViewLink')
-            report.video_link = link_encontrado
-            report.status_compliance = "Verde"
-            print(f"[WORKER] ✅ Vídeo encontrado: {video_drive.get('name')} -> {link_encontrado}")
+            md5_hash = video_drive.get('md5Checksum', 'N/A')
+            size_bytes = int(video_drive.get('size', 0))
+            
+            # Trava de Integridade SRE: Vídeo menos de 100MB é possivelmente corrompido
+            if size_bytes < 100 * 1024 * 1024:
+                print(f"[WORKER] ⚠️ Vídeo possivelmente corrompido ou incompleto: {size_bytes / (1024*1024):.2f} MB")
+                report.status_compliance = "Pendente"
+                obs_atual = report.observacoes or ""
+                if "Falha de Integridade: Arquivo Corrompido ou Incompleto (Menos de 100MB)" not in obs_atual:
+                    report.observacoes = obs_atual + "\nFalha de Integridade: Arquivo Corrompido ou Incompleto (Menos de 100MB)"
+                db.commit()
+                try:
+                    raise self.retry()
+                except MaxRetriesExceededError:
+                    report.status_compliance = "Vermelho"
+                    db.commit()
+                    return False
+            else:
+                report.video_link = link_encontrado
+                report.status_compliance = "Verde"
+                report.md5_checksum = md5_hash
+                
+                # Armazena o Hash no log de observações caso exigido para transição binária futura
+                obs_atual = report.observacoes or ""
+                if md5_hash not in obs_atual:
+                    report.observacoes = obs_atual + f"\n[SRE] Arquivo Íntegro. Hash MD5: {md5_hash}"
+                
+                print(f"[WORKER] ✅ Vídeo encontrado e validado: {video_drive.get('name')} -> {link_encontrado}")
 
         db.commit()
         return True
@@ -58,7 +91,8 @@ def verificar_compliance_drive(self, report_id: str, nome_padronizado: str):
     except Exception as e:
         print(f"[WORKER] ❌ Falha na tarefa: {str(e)}")
         db.rollback()
-        return False
+        # Exception será engolida pelo autoretry_for ou retentada, se rate limits (429/423)
+        raise e
     finally:
         db.close()
 

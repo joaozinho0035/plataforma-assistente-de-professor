@@ -313,7 +313,7 @@
                     </td>`;
                 } else if (temp) {
                     html += `<td class="grade-slot" style="border-left: 3px solid #3b82f6; ${cellBg} position: relative;">
-                        <div onclick="openNewReport('${d}', '${horario}', '${temp.disciplina_id}')" style="cursor: pointer;">
+                        <div onclick="openNewReport('${d}', '${horario}', '${temp.disciplina_id}', '${temp.professor_id || ''}')" style="cursor: pointer;">
                             <div class="slot-disciplina" style="font-weight: 500;">${temp.disciplina_nome}</div>
                             <div style="margin-top: 2px; color: var(--text-muted); font-size: 0.65rem;">Canal ${temp.canal_iptv || ''}</div>
                         </div>
@@ -434,15 +434,24 @@
         } catch (e) { console.error(e); }
     }
 
-    function openNewReport(date, horario, disciplinaId = '') {
+    function openNewReport(date, horario, disciplinaId = '', professorId = '') {
         const turmaId = document.getElementById('turma-selector').value;
         let url = `/report?data=${date}&horario=${encodeURIComponent(horario)}&turma=${turmaId}`;
         if (disciplinaId) url += `&disciplina=${disciplinaId}`;
+        if (professorId) url += `&professor=${professorId}`;
         window.location.href = url;
     }
 
     async function openSlotDetail(reportId) {
         const token = localStorage.getItem('access_token');
+        const user = getUser();
+        
+        // Se for admin, redireciona direto para o formulário de edição
+        if (user && user.role === 'admin') {
+            window.location.href = `/report?report_id=${reportId}`;
+            return;
+        }
+
         document.getElementById('slot-overlay').classList.add('open');
         document.getElementById('slot-drawer').classList.add('open');
         document.getElementById('slot-content').innerHTML = '<div class="spinner"></div>';

@@ -184,6 +184,8 @@ def listar_grade_turma(
             "canal_iptv": g.canal_iptv,
             "disciplina_id": str(g.disciplina_id) if g.disciplina_id else None,
             "disciplina_nome": g.disciplina.nome if g.disciplina else "N/A",
+            "professor_id": str(g.professor_id) if getattr(g, "professor_id", None) else None,
+            "professor_nome": getattr(g.professor, "nome", "N/A") if getattr(g, "professor_id", None) else "N/A",
             "is_gravacao": (g.horario_inicio.strftime("%H:%M") == "00:00") if g.horario_inicio else False
         })
     

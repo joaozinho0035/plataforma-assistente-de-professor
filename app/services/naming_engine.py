@@ -26,7 +26,7 @@ def sanitizar_conteudo(texto: str) -> str:
     - Preserva o case original (NÃO força uppercase)
     - Limita a 100 caracteres
     """
-    # 1. Remove acentos
+    # 1. Remove acentos (conforme spec §1 e §2)
     texto = remover_acentos(texto)
 
     # 2. Remove caracteres específicos: _ . , : ; ! ? / \ () [] {}
@@ -70,7 +70,7 @@ def gerar_nome_padronizado(
     turma_limpo = remover_acentos(turma_limpo).upper()
 
     # 2. Disciplina limpa
-    disc_limpo = remover_acentos(disciplina.strip()).upper()
+    disc_limpo = remover_acentos(disciplina).strip().upper()
 
     # 3. Data formatada (DD MM YY)
     data_str = data_aula.strftime("%d %m %y")

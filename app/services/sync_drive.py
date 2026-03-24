@@ -75,7 +75,7 @@ def buscar_video_no_drive(nome_alvo: str):
     try:
         results = service.files().list(
             q=query, 
-            fields="files(id, name, webViewLink, size, createdTime, mimeType)",
+            fields="files(id, name, webViewLink, size, createdTime, mimeType, md5Checksum)",
             pageSize=20,
             supportsAllDrives=True,
             includeItemsFromAllDrives=True,
@@ -104,7 +104,7 @@ def buscar_video_no_drive(nome_alvo: str):
             
             results = service.files().list(
                 q=query_data, 
-                fields="files(id, name, webViewLink, size, createdTime, mimeType)",
+                fields="files(id, name, webViewLink, size, createdTime, mimeType, md5Checksum)",
                 pageSize=50,
                 supportsAllDrives=True,
                 includeItemsFromAllDrives=True,
@@ -124,4 +124,8 @@ def buscar_video_no_drive(nome_alvo: str):
         
     except Exception as e:
         print(f"❌ ERRO na busca do Drive: {str(e)}")
+        # Tratamento SRE: Rate Limiting e Locks
+        from googleapiclient.errors import HttpError
+        if isinstance(e, HttpError) and e.resp.status in [423, 429]:
+            raise e  # Lança a exceção para que o Celery possa efetuar o retry_backoff
         return None

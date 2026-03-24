@@ -14,8 +14,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, require_role
 from app.core.database import get_db
+from app.models.audit_log import AuditLog
 from app.models.auxiliares import Disciplina, Professor, ProfessorDisciplina
 from app.models.class_report import ClassReport
 from app.models.turma import Turma
@@ -197,6 +198,14 @@ def criar_relatorio(
     )
 
     db.add(report)
+    db.flush()
+    if current_user.role == "admin":
+        log = AuditLog(
+            actor_id=current_user.id,
+            action="CREATE_REPORT",
+            details=f"Admin criou o relatório {report.id}"
+        )
+        db.add(log)
     db.commit()
     db.refresh(report)
 
@@ -220,6 +229,13 @@ def finalizar_relatorio(
         raise HTTPException(
             status_code=400,
             detail=f"Relatório com status '{report.status}' não pode ser finalizado.",
+        )
+
+    # Restrição RBAC (Ownership)
+    if current_user.role == "assistente" and report.created_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Assistentes só podem finalizar relatórios criados por eles mesmos.",
         )
 
     # Buscar turma para dados do naming engine
@@ -312,6 +328,13 @@ def cancelar_relatorio(
 
     if report.status == "CANCELADO":
         raise HTTPException(status_code=400, detail="Relatório já está cancelado.")
+
+    # Restrição RBAC (Ownership)
+    if current_user.role == "assistente" and report.created_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Assistentes só podem cancelar relatórios criados por eles mesmos.",
+        )
 
     report.status = "CANCELADO"
     report.observacoes = (
@@ -407,9 +430,12 @@ def exportar_relatorios(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Exporta relatórios em CSV respeitando filtros ativos (§5.3).
-    Usado para fecho de faturamento e relatórios gerenciais.
+    Exporta relatórios em XLSX (Excel) respeitando filtros ativos (§5.3).
+    Formato idêntico ao modelo de saída, com nomes legíveis e links do Drive.
     """
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
     query = db.query(ClassReport)
 
     query = _apply_report_filters(
@@ -430,50 +456,163 @@ def exportar_relatorios(
 
     reports = query.order_by(ClassReport.data_aula.desc()).all()
 
-    # Build CSV
-    output = io.StringIO()
-    writer = csv.writer(output, delimiter=";")
+    # --- Pré-carregar nomes para evitar N+1 queries ---
+    turma_ids = {r.turma_id for r in reports}
+    disc_ids = {r.disciplina_id for r in reports}
+    prof_ids = {r.professor_id for r in reports}
+    sub_ids = {r.professor_substituto_id for r in reports if r.professor_substituto_id}
 
-    # Header
-    writer.writerow([
-        "ID", "Status", "Data Aula", "Turno", "Estúdio", "Turma ID",
-        "Disciplina ID", "Professor ID", "Horário", "Regular",
-        "Tipo Aula", "Canal", "Conteúdo Ministrado",
-        "Interação", "Atividade Prática",
-        "Recursos", "Problema Material",
-        "Substituição", "Professor Substituto ID",
-        "Atraso", "Minutos Atraso", "Obs. Atraso",
-        "Nome Ficheiro", "Geminada Resolvida",
-        "Criado Por", "Criado Em", "Observações",
-    ])
+    turmas_map = {
+        t.id: t for t in db.query(Turma).filter(Turma.id.in_(turma_ids)).all()
+    } if turma_ids else {}
+    discs_map = {
+        d.id: d for d in db.query(Disciplina).filter(Disciplina.id.in_(disc_ids)).all()
+    } if disc_ids else {}
+    all_prof_ids = prof_ids | sub_ids
+    profs_map = {
+        p.id: p for p in db.query(Professor).filter(Professor.id.in_(all_prof_ids)).all()
+    } if all_prof_ids else {}
 
-    for r in reports:
-        writer.writerow([
-            str(r.id), r.status, str(r.data_aula), r.turno, r.estudio,
-            str(r.turma_id), str(r.disciplina_id), str(r.professor_id),
-            r.horario_aula, r.regular,
-            r.tipo_aula, r.canal_utilizado, r.conteudo_ministrado,
-            r.interacao_professor_aluno, r.atividade_pratica or "",
-            ",".join(r.tipo_recursos_utilizados) if r.tipo_recursos_utilizados else "",
-            r.problema_material,
+    # Dias da semana em português
+    DIAS_PT = {
+        0: "Segunda", 1: "Terça", 2: "Quarta",
+        3: "Quinta", 4: "Sexta", 5: "Sábado", 6: "Domingo",
+    }
+
+    # --- Criar workbook ---
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Sistema"
+
+    # Headers idênticos ao modelo
+    headers = [
+        "DATA", "DIA ", "TURNO", "ESTÚDIO", "CANAL",
+        "CURSO", "HORÁRIO", "DISCIPLINA", "PROFESSOR",
+        "REGULAR", "SUBSTITUIÇÃO DE PROFESSOR", "PROFESSOR QUE SUBSTITUIU",
+        "INTERAÇÃO PROFESSOR ALUNO", "TIPO DE INTERAÇÃO",
+        "ATIVIDADE PRÁTICA PARA ESCOLA", "TIPO DE ATIVIDADE PRÁTICA",
+        "ATRASO PARA INÍCIO", "TEMPO DE ATRASO", "OBSERVAÇÃO ATRASO",
+        "PROBLEMA COM MATERIAL ", "MOTIVO DO PROBLEMA",
+        "UTILIZOU ALGUM RECURSO", "TIPO DE RECURSO", "FICHEIRO GERADO",
+        "LINK DO VÍDEO", "PASTA DO DRIVE",
+    ]
+
+    # Estilo do header
+    header_font = Font(bold=True, size=10)
+    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_font_white = Font(bold=True, size=10, color="FFFFFF")
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+
+    for col_idx, header in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font_white
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        cell.border = thin_border
+
+    # --- Preencher dados ---
+    for row_idx, r in enumerate(reports, 2):
+        turma = turmas_map.get(r.turma_id)
+        disc = discs_map.get(r.disciplina_id)
+        prof = profs_map.get(r.professor_id)
+        prof_sub = profs_map.get(r.professor_substituto_id) if r.professor_substituto_id else None
+
+        # Calcular dia da semana
+        dia_semana = DIAS_PT.get(r.data_aula.weekday(), "") if r.data_aula else ""
+
+        # Data formatada DD/MM/YYYY
+        data_fmt = r.data_aula.strftime("%d/%m/%Y") if r.data_aula else ""
+
+        # Interação: campo pode ser "Não", "Chat", "Videoconferência", etc.
+        tem_interacao = r.interacao_professor_aluno and r.interacao_professor_aluno != "Não"
+        interacao_sim_nao = "Sim" if tem_interacao else "Não"
+        tipo_interacao = r.interacao_professor_aluno if tem_interacao else ""
+
+        # Atividade prática
+        tem_atividade = bool(r.atividade_pratica and r.atividade_pratica.strip())
+        atividade_sim_nao = "Sim" if tem_atividade else "Não"
+
+        # Atraso
+        atraso_sim_nao = "sim" if r.teve_atraso else "não"
+        tempo_atraso = str(r.minutos_atraso) if r.teve_atraso and r.minutos_atraso else "não"
+
+        # Problema material
+        tem_problema = r.problema_material and r.problema_material != "Não"
+        problema_sim_nao = "Sim" if tem_problema else "Não"
+        motivo_problema = r.problema_material if tem_problema else "Não"
+
+        # Recursos
+        tem_recurso = bool(r.tipo_recursos_utilizados and len(r.tipo_recursos_utilizados) > 0)
+        recurso_sim_nao = "Sim" if tem_recurso else "Não"
+        tipo_recurso = ", ".join(r.tipo_recursos_utilizados) if tem_recurso else ""
+
+        # Drive links
+        video_link = r.video_link or ""
+        try:
+            folder_link = r.video_folder_link or ""
+        except Exception:
+            folder_link = ""
+
+        row_data = [
+            data_fmt,
+            dia_semana,
+            r.turno or "",
+            r.estudio or "",
+            r.canal_utilizado or "",
+            turma.nome if turma else "",
+            r.horario_aula or "",
+            disc.nome if disc else "",
+            prof.nome if prof else "",
+            r.regular or "Sim",
             "Sim" if r.teve_substituicao else "Não",
-            str(r.professor_substituto_id) if r.professor_substituto_id else "",
-            "Sim" if r.teve_atraso else "Não",
-            str(r.minutos_atraso) if r.minutos_atraso else "",
+            prof_sub.nome if prof_sub else "-",
+            interacao_sim_nao,
+            tipo_interacao,
+            atividade_sim_nao,
+            r.atividade_pratica or "",
+            atraso_sim_nao,
+            tempo_atraso,
             r.observacao_atraso or "",
+            problema_sim_nao,
+            motivo_problema,
+            recurso_sim_nao,
+            tipo_recurso,
             r.nome_ficheiro_gerado or "",
-            "Sim" if r.conflito_geminada_resolvido else "Não",
-            str(r.created_by), str(r.created_at),
-            r.observacoes or "",
-        ])
+            video_link,
+            folder_link,
+        ]
 
+        for col_idx, value in enumerate(row_data, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=value)
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical="center")
+
+    # Ajustar largura das colunas
+    for col_idx in range(1, len(headers) + 1):
+        col_letter = ws.cell(row=1, column=col_idx).column_letter
+        max_len = max(
+            len(str(ws.cell(row=r, column=col_idx).value or ""))
+            for r in range(1, min(len(reports) + 2, 50))
+        ) if reports else len(headers[col_idx - 1])
+        ws.column_dimensions[col_letter].width = min(max(max_len + 2, 12), 40)
+
+    # --- Gerar resposta ---
+    output = io.BytesIO()
+    wb.save(output)
     output.seek(0)
+
+    filename = f"relatorios_{date.today().strftime('%d.%m.%y')}.xlsx"
 
     return StreamingResponse(
         iter([output.getvalue()]),
-        media_type="text/csv",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={
-            "Content-Disposition": f"attachment; filename=relatorios_{date.today().isoformat()}.csv"
+            "Content-Disposition": f'attachment; filename="{filename}"'
         },
     )
 
@@ -489,6 +628,68 @@ def obter_relatorio(
     if not report:
         raise HTTPException(status_code=404, detail="Relatório não encontrado.")
     return report
+
+
+@router.put("/{report_id}", response_model=ClassReportResponse)
+def editar_relatorio_admin(
+    report_id: UUID,
+    data: ClassReportCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Admin: Edita qualquer relatório e salva no log."""
+    report = db.query(ClassReport).filter(ClassReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Relatório não encontrado.")
+
+    _validar_professor_disciplina(db, data.professor_id, data.disciplina_id)
+    _validar_campos_condicionais(data)
+
+    for key, value in data.model_dump().items():
+        setattr(report, key, value)
+
+    if report.status == "FINALIZADO":
+        turma = db.query(Turma).filter(Turma.id == report.turma_id).first()
+        disciplina = db.query(Disciplina).filter(Disciplina.id == report.disciplina_id).first()
+        nome_gerado = gerar_nome_padronizado(
+            nomenclatura_turma=turma.nomenclatura_padrao or turma.nome,
+            disciplina=disciplina.nome if disciplina else "",
+            data_aula=report.data_aula,
+            conteudo=report.conteudo_ministrado,
+        )
+        report.nome_ficheiro_gerado = nome_gerado
+
+    log = AuditLog(
+        actor_id=current_user.id,
+        action="EDIT_REPORT",
+        details=f"Admin editou o relatório {report.id}"
+    )
+    db.add(log)
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+def excluir_relatorio_admin(
+    report_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_role("admin")),
+):
+    """Admin: Exclui um relatório permanentemente e salva no log."""
+    report = db.query(ClassReport).filter(ClassReport.id == report_id).first()
+    if not report:
+        raise HTTPException(status_code=404, detail="Relatório não encontrado.")
+
+    log = AuditLog(
+        actor_id=current_user.id,
+        action="DELETE_REPORT",
+        details=f"Admin excluiu o relatório {report.id} (Turma: {report.turma_id}, Data: {report.data_aula})"
+    )
+    db.add(log)
+    db.delete(report)
+    db.commit()
+    return None
 
 
 # ─── Endpoints Auxiliares (Lookup Data) ──────────────────────────────

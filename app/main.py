@@ -1,4 +1,4 @@
-﻿"""
+"""
 Canal Educação v3.0 — Aplicação Principal FastAPI.
 Registra todas as rotas, middleware, CORS, WebSockets, e templates.
 """
@@ -27,7 +27,6 @@ from app.models import (  # noqa: F401
     ClassReport,
     Disciplina,
     Grade,
-    Lesson,
     Professor,
     ProfessorDisciplina,
     Turma,

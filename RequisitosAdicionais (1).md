@@ -222,4 +222,49 @@ Painel estilo NOC (Network Operations Center), estritamente "Read-Only" (apenas 
     * 🟢 **FINALIZADO:** Aula concluída, nomenclatura gerada e pronta.  
     * ⚪ **CANCELADO:** Aula relatada como cancelada.
 
+Requisitos de Higienização e Conteúdo
+Preservar as letras maiúsculas e minúsculas originais digitadas pelo usuário (não forçar uppercase).
+
+Remover todos os acentos utilizando normalização adequada (ex: á vira a, ç vira c).
+
+Remover todos os caracteres especiais, incluindo _ . , : ; ! ? / \ () [] {}, além de emojis e símbolos.
+
+Reduzir espaços múltiplos para apenas um espaço simples.
+
+Regras de Nomenclatura do Arquivo
+Estruturar o nome base estritamente no formato: [TIPO] [SERIE] [TURNO] [DISCIPLINA] [DIA] [MES] [ANO] [CONTEUDO].
+
+Separar os termos exclusivamente por espaços (proibido o uso de hífens ou underlines).
+
+Remover automaticamente o prefixo "REGULAR" dos nomes dos arquivos.
+
+Impedir a duplicação de palavras no nome gerado.
+
+Garantir que a extensão final do arquivo seja sempre .mp4 (estritamente em letras minúsculas).
+
+Corrigir automaticamente erros de extensão durante o pipeline (ex: converter .MP4 para .mp4 e reduzir .mp4.mp4 para .mp4).
+
+Parâmetros de Busca no Google Drive
+Configurar a query principal para buscar pelo nome base gerado (name contains '{nome_base}').
+
+Restringir a pesquisa para a pasta institucional correta utilizando a variável GOOGLE_DRIVE_VIDEOS_FOLDER_ID ('{FOLDER_ID}' in parents).
+
+Habilitar a busca global nos drives da instituição (supportsAllDrives=True, includeItemsFromAllDrives=True, corpora="allDrives").
+
+Filtrar estritamente por arquivos de vídeo (mimeType contains 'video') e ignorar arquivos na lixeira (trashed=false).
+
+Implementar correspondência flexível (Match Flexível) no backend para ignorar divergências de acentuação, maiúsculas/minúsculas e subpastas entre o nome gerado e o arquivo real no Drive.
+
+Acionar um fallback de busca utilizando os componentes de data (DD MM AA) caso a busca inicial pelo nome completo falhe.
+
+Regras de Negócio e Compliance
+Classificar o status do vídeo como VERDE (encontrado), PENDENTE (ainda não localizado no Drive) ou VERMELHO (não encontrado após o limite de tentativas).
+
+Executar um fluxo de retry automático via Celery caso o vídeo não seja encontrado na primeira tentativa (1 tentativa por hora, limite máximo de 15 horas).
+
+Rodar uma rotina de sincronização noturna todos os dias às 03:00 da manhã para varrer e reprocessar todos os relatórios com status pendente.
+
+Disponibilizar um endpoint (POST /api/v1/reports/force-sync-drive) para permitir a sincronização manual e imediata pelo operador.
+
+
 

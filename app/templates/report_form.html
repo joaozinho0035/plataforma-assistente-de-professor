@@ -360,6 +360,7 @@
 <script>
     let turmasData = [];
     let lastSavedId = null;
+    let isEditing = false;
 
     document.addEventListener('DOMContentLoaded', async () => {
         const token = localStorage.getItem('access_token');
@@ -415,7 +416,23 @@
                 const selDisc = document.getElementById('disciplina_id');
                 selDisc.value = preDisc;
                 await onDisciplinaChange();
+                
+                const preProf = params.get('professor');
+                if (preProf && preProf !== 'null' && preProf !== 'undefined') {
+                    const selProf = document.getElementById('professor_id');
+                    if (Array.from(selProf.options).some(opt => opt.value === preProf)) {
+                        selProf.value = preProf;
+                    }
+                }
             }
+        }
+
+        // 3. Load existing report if ID is present
+        const reportId = params.get('report_id');
+        if (reportId) {
+            isEditing = true;
+            lastSavedId = reportId;
+            await loadExistingReport(reportId);
         }
 
         updateNaming();
@@ -500,9 +517,79 @@
         } catch (e) { console.error(e); }
     }
 
+    async function loadExistingReport(reportId) {
+        const token = localStorage.getItem('access_token');
+        try {
+            const res = await fetch(`/api/v1/reports/${reportId}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+                const r = await res.json();
+                
+                // Set metadata states
+                document.getElementById('data_aula').value = r.data_aula;
+                document.getElementById('turno').value = r.turno;
+                document.getElementById('estudio').value = r.estudio;
+                document.getElementById('horario_aula').value = r.horario_aula;
+                document.getElementById('regular').value = r.regular;
+                
+                // Set Turma & Discipline (ensure options are loaded)
+                document.getElementById('turma_id').value = r.turma_id;
+                await onTurmaChange();
+                document.getElementById('disciplina_id').value = r.disciplina_id;
+                await onDisciplinaChange();
+                document.getElementById('professor_id').value = r.professor_id;
+
+                // Execution Details
+                document.getElementById('tipo_aula').value = r.tipo_aula;
+                document.getElementById('canal_utilizado').value = r.canal_utilizado;
+                document.getElementById('conteudo_ministrado').value = r.conteudo_ministrado;
+                document.getElementById('interacao_professor_aluno').value = r.interacao_professor_aluno;
+                document.getElementById('interacao_outras_desc').value = r.interacao_outras_desc || '';
+                document.getElementById('atividade_pratica').value = r.atividade_pratica || '';
+                document.getElementById('observacoes').value = r.observacoes || '';
+
+                // Recursion / Materials
+                if (r.tipo_recursos_utilizados) {
+                    r.tipo_recursos_utilizados.forEach(val => {
+                        const cb = document.querySelector(`.recurso-check[value="${val}"]`);
+                        if (cb) cb.checked = true;
+                    });
+                }
+                document.getElementById('recursos_outro_desc').value = r.recursos_outro_desc || '';
+                document.getElementById('problema_material').value = r.problema_material;
+                document.getElementById('problema_material_outro_desc').value = r.problema_material_outro_desc || '';
+
+                // Compliance
+                document.getElementById('teve_substituicao').value = String(r.teve_substituicao);
+                if (r.teve_substituicao) {
+                    document.getElementById('professor_substituto_id').value = r.professor_substituto_id || '';
+                }
+                document.getElementById('teve_atraso').value = String(r.teve_atraso);
+                if (r.teve_atraso) {
+                    document.getElementById('minutos_atraso').value = r.minutos_atraso || '';
+                    document.getElementById('observacao_atraso').value = r.observacao_atraso || '';
+                }
+
+                // Initial UI Toggles based on loaded data
+                toggleConditional('interacao');
+                toggleConditional('recurso');
+                toggleConditional('problema');
+                toggleConditional('substituicao');
+                toggleConditional('atraso');
+                
+                document.getElementById('char-count').textContent = r.conteudo_ministrado.length;
+            }
+        } catch (e) {
+            console.error('Error loading report:', e);
+            showToast('Erro ao carregar relatório existente.', 'error');
+        }
+    }
+
     // ─── Naming Engine Preview (§5.2 Crítico) ───────────────────────
     function removeAccents(str) {
-        return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        // Desativado para acompanhar a preservação de acentos do Backend
+        return str;
     }
 
     function sanitize(str) {
@@ -630,8 +717,11 @@
         const body = buildReportBody();
 
         try {
-            const res = await fetch('/api/v1/reports/', {
-                method: 'POST',
+            const url = isEditing ? `/api/v1/reports/${lastSavedId}` : '/api/v1/reports/';
+            const method = isEditing ? 'PUT' : 'POST';
+
+            const res = await fetch(url, {
+                method: method,
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json',

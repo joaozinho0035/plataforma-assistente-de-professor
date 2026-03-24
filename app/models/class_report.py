@@ -88,6 +88,7 @@ class ClassReport(Base):
     # ─── G. Compliance Digital (§6) ──────────────────────────────────
     video_link = Column(String(1000), nullable=True)
     status_compliance = Column(String(20), default="Pendente", nullable=False) # Verde, Vermelho, Pendente
+    md5_checksum = Column(String(32), nullable=True)
 
     @property
     def video_folder_link(self) -> str:

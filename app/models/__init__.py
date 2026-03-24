@@ -12,7 +12,6 @@ from app.models.auxiliares import (
     Unit,
 )
 from app.models.class_report import ClassReport
-from app.models.lesson import Lesson
 from app.models.turma import Turma
 from app.models.user import User
 
@@ -20,7 +19,6 @@ __all__ = [
     "AuditLog",
     "User",
     "Turma",
-    "Lesson",
     "ClassReport",
     "Professor",
     "Disciplina",

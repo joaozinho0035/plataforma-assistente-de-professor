@@ -7,8 +7,8 @@
         <h1 class="page-title">📋 Relatórios & Auditoria</h1>
         <p class="page-subtitle">Buscas, compliance e exportação para faturamento</p>
     </div>
-    <button class="btn btn-primary" onclick="exportCSV()">
-        📥 Exportar CSV
+    <button class="btn btn-primary" onclick="exportExcel()">
+        📥 Exportar Excel
     </button>
 </div>
 
@@ -344,7 +344,7 @@
         loadReports();
     }
 
-    async function exportCSV() {
+    async function exportExcel() {
         const token = localStorage.getItem('access_token');
         const params = buildFilterParams();
         params.delete('limit');
@@ -360,10 +360,10 @@
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `relatorios_${new Date().toISOString().split('T')[0]}.csv`;
+            a.download = `relatorios_${new Date().toISOString().split('T')[0]}.xlsx`;
             a.click();
             window.URL.revokeObjectURL(url);
-            showToast('Exportação CSV concluída!', 'success');
+            showToast('Exportação Excel concluída!', 'success');
         } catch (e) {
             showToast('Erro ao exportar: ' + e.message, 'error');
         }
