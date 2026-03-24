@@ -27,7 +27,9 @@ async def send_invite_email(email: str, full_name: str, token: str):
     content = f"""
     Olá {full_name},
     
-    Sua conta foi criada no sistema Canal Educação v3.0.
+    Bem-vindo ao Canal Educação!
+    
+    Sua conta foi criada no sistema Canal Educação.
     
     Para começar a utilizar a plataforma, você precisa definir sua senha inicial
     através do link seguro abaixo:
